@@ -4,7 +4,11 @@ import json
 import torch
 
 from numba_eval.benchmark import time_cpu
-from numba_eval.constants import LOOPS, SHAPE_A, SHAPE_B
+
+
+SHAPE_A = (19, 17, 13, 11, 7, 5, 3, 2)
+SHAPE_B = (2, 3, 5, 7, 11, 13, 17, 19)
+LOOPS = 100
 
 
 def method1_pytorch(tensor: torch.Tensor) -> float:

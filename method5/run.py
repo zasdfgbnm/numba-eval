@@ -6,7 +6,10 @@ from typing import Tuple
 import torch
 
 from numba_eval.benchmark import time_cpu
-from numba_eval.constants import LOOPS, SHAPE_B
+
+
+SHAPE_B = (2, 3, 5, 7, 11, 13, 17, 19)
+LOOPS = 100
 
 
 def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
@@ -28,7 +31,7 @@ def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
         handle = bridge.torch_cuda_empty(tensor.numel())
         out_ptr = bridge.torch_cuda_data_ptr(handle)
         in_ptr = tensor.data_ptr()
-        for idx in range(LOOPS):
+        for _ in range(LOOPS):
             bridge.torch_cuda_launch_add(in_ptr, out_ptr, tensor.numel(), 1.0)
             bridge.torch_cuda_launch_add(out_ptr, out_ptr, tensor.numel(), -1.0)
             bridge.torch_cuda_launch_add(out_ptr, out_ptr, tensor.numel(), 0.0)
