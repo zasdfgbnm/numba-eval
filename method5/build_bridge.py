@@ -4,7 +4,11 @@ from torch.utils.cpp_extension import load
 
 def build_bridge() -> str:
     base_dir = os.path.dirname(__file__)
-    sources = [os.path.join(base_dir, "csrc", "bridge.cpp"), os.path.join(base_dir, "csrc", "add_kernel.cu")]
+    repo_root = os.path.dirname(base_dir)
+    sources = [
+        os.path.join(base_dir, "csrc", "bridge.cpp"),
+        os.path.join(repo_root, "common", "csrc", "add_kernel.cu"),
+    ]
     module = load(
         name="numba_eval_bridge",
         sources=sources,
