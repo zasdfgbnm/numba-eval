@@ -4,7 +4,7 @@ Benchmark CPU overhead for repeated PyTorch add/reshape chains on a CUDA tensor.
 
 ## Repo Layout
 
-- `common/`: shared Python package (`numba_eval`) with timing utilities and op-chain emulation.
+- `common/`: shared Python package (`numba_eval`) with timing utilities and constants.
 - `method1/`: PyTorch Python baseline.
 - `method2/`: LibTorch C++ baseline.
 - `method3/`: Python emulation with explicit checks.

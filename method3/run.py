@@ -5,7 +5,7 @@ import torch
 
 from numba_eval.benchmark import time_cpu
 from numba_eval.constants import LOOPS, SHAPE_A, SHAPE_B
-from numba_eval.ops_emulation import emulate_add_reshape_chain
+from ops_emulation import emulate_add_reshape_chain
 
 
 def method3_python_emulation(tensor: torch.Tensor) -> float:
