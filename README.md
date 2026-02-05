@@ -2,40 +2,56 @@
 
 Benchmark CPU overhead for repeated PyTorch add/reshape chains on a CUDA tensor.
 
-## Methods
+## Repo Layout
 
-- **Method 1**: PyTorch Python chain.
-- **Method 2**: Libtorch C++ chain.
-- **Method 3**: Python emulation with explicit shape/stride checks and launch config.
-- **Method 4**: C++ emulation with explicit shape/stride checks and launch config.
-- **Method 5A/5B**: C/CUDA bridge for allocator + kernel launch, wired into Python (with/without Numba).
+- `common/`: shared Python package (`numba_eval`) with timing utilities and op-chain emulation.
+- `method1/`: PyTorch Python baseline.
+- `method2/`: LibTorch C++ baseline.
+- `method3/`: Python emulation with explicit checks.
+- `method4/`: C++ emulation with explicit checks.
+- `method5/`: C/CUDA bridge (Numba-compatible) + Python harness.
+
+## UV Setup
+
+```bash
+uv venv
+source .venv/bin/activate
+uv pip install -e .
+uv pip install "numba-eval[numba]"  # optional for method5a
+```
 
 ## Python Benchmarks (Method 1/3/5)
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install torch numba
+# Method 1 (PyTorch Python)
+python method1/run.py --device cuda
 
-# Build the bridge (method 5)
-python csrc/build_bridge.py
-export NUMBA_EVAL_BRIDGE=$(python -c "import csrc.build_bridge as b; print(b.build_bridge())")
+# Method 3 (Python emulation)
+python method3/run.py --device cuda
 
-# Run python benchmarks
-python benchmarks/benchmark.py --device cuda
+# Method 5 (C/CUDA bridge)
+python method5/build_bridge.py
+export NUMBA_EVAL_BRIDGE=$(python -c "import method5.build_bridge as b; print(b.build_bridge())")
+python method5/run.py --device cuda
 ```
 
 ## C++ Benchmarks (Method 2/4)
 
 ```bash
-# Set TORCH_PATH to your LibTorch install
+# Method 2 (LibTorch)
 export Torch_DIR=/path/to/libtorch/share/cmake/Torch
-mkdir -p cpp/build
-cd cpp/build
+mkdir -p method2/build
+cd method2/build
 cmake ..
 cmake --build . -j
-
 ./method2_libtorch
+
+# Method 4 (custom emulation)
+cd ../../method4
+mkdir -p build
+cd build
+cmake ..
+cmake --build . -j
 ./method4_custom
 ```
 

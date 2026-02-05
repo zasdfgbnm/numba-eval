@@ -1,21 +1,7 @@
 import math
-from dataclasses import dataclass
-from typing import List, Sequence, Tuple
+from typing import Sequence, Tuple
 
 import torch
-
-
-@dataclass
-class ShapeStride:
-    shape: Tuple[int, ...]
-    stride: Tuple[int, ...]
-
-    @property
-    def numel(self) -> int:
-        numel = 1
-        for dim in self.shape:
-            numel *= dim
-        return numel
 
 
 def _compute_contiguous_stride(shape: Sequence[int]) -> Tuple[int, ...]:
@@ -60,7 +46,6 @@ def _can_view(shape: Sequence[int], stride: Sequence[int], new_shape: Sequence[i
     if _is_contiguous(shape, stride):
         return True
 
-    # Collapse contiguous chunks and verify they can be reinterpreted.
     dims = list(shape)
     strides = list(stride)
     view_dims = []
@@ -74,7 +59,6 @@ def _can_view(shape: Sequence[int], stride: Sequence[int], new_shape: Sequence[i
             view_dims.append(size)
             view_strides.append(st)
 
-    # If the collapsed representation is contiguous, accept.
     if not view_dims:
         return True
 
@@ -96,7 +80,7 @@ def _calc_launch_config(numel: int, threads_per_block: int = 256) -> Tuple[int, 
 def _launch_add(tensor: torch.Tensor, value: float) -> torch.Tensor:
     numel = tensor.numel()
     contiguous = tensor.is_contiguous()
-    _ = contiguous  # emulate compiler-generated checks
+    _ = contiguous
     _calc_launch_config(numel)
     return tensor.add(value)
 

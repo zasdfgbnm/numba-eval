@@ -1,45 +1,12 @@
 import argparse
 import json
 import os
-import sys
-import time
-from typing import Callable, Dict, Tuple
+from typing import Tuple
 
 import torch
 
-sys.path.append(os.path.dirname(__file__))
-from ops_emulation import emulate_add_reshape_chain
-
-
-SHAPE_A = (19, 17, 13, 11, 7, 5, 3, 2)
-SHAPE_B = (2, 3, 5, 7, 11, 13, 17, 19)
-LOOPS = 100
-
-
-def _time_cpu(fn: Callable[[], None], iters: int) -> float:
-    start = time.perf_counter()
-    for _ in range(iters):
-        fn()
-    end = time.perf_counter()
-    return end - start
-
-
-def method1_pytorch(tensor: torch.Tensor) -> float:
-    def op():
-        out = tensor.add(1)
-        out = out.reshape(*SHAPE_A)
-        out = out.add(-1)
-        out = out.reshape(*SHAPE_B)
-        _ = out.add(0)
-
-    return _time_cpu(op, LOOPS)
-
-
-def method3_python_emulation(tensor: torch.Tensor) -> float:
-    def op():
-        _ = emulate_add_reshape_chain(tensor, SHAPE_A, SHAPE_B)
-
-    return _time_cpu(op, LOOPS)
+from numba_eval.benchmark import time_cpu
+from numba_eval.constants import LOOPS, SHAPE_B
 
 
 def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
@@ -57,7 +24,7 @@ def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
     bridge.torch_cuda_launch_add.argtypes = [ctypes.c_uint64, ctypes.c_uint64, ctypes.c_int64, ctypes.c_float]
     bridge.torch_cuda_launch_add.restype = None
 
-    def op():
+    def op() -> None:
         handle = bridge.torch_cuda_empty(tensor.numel())
         out_ptr = bridge.torch_cuda_data_ptr(handle)
         in_ptr = tensor.data_ptr()
@@ -71,7 +38,7 @@ def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
         except Exception as exc:  # pragma: no cover - environment dependent
             return float("nan"), f"numba unavailable: {exc}"
 
-    return _time_cpu(op, LOOPS), "ok"
+    return time_cpu(op, LOOPS), "ok"
 
 
 def main() -> None:
@@ -80,13 +47,13 @@ def main() -> None:
     args = parser.parse_args()
 
     device = torch.device(args.device)
+    if device.type != "cuda":
+        print(json.dumps({"method5_error": "method5 requires CUDA"}, indent=2))
+        return
+
     tensor = torch.empty(SHAPE_B, device=device, dtype=torch.float32)
 
-    results: Dict[str, float] = {}
-
-    results["method1_pytorch"] = method1_pytorch(tensor)
-    results["method3_python_emulation"] = method3_python_emulation(tensor)
-
+    results = {}
     time5a, note5a = method5_bridge(tensor, use_numba=True)
     results["method5a_bridge_numba"] = time5a
     results["method5a_note"] = note5a
