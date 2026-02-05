@@ -10,9 +10,11 @@ from ops_emulation import emulate_add_reshape_chain
 
 def method3_python_emulation(tensor: torch.Tensor) -> float:
     def op() -> None:
-        _ = emulate_add_reshape_chain(tensor, SHAPE_A, SHAPE_B)
+        out = tensor
+        for _ in range(LOOPS):
+            out = emulate_add_reshape_chain(out, SHAPE_A, SHAPE_B)
 
-    return time_cpu(op, LOOPS)
+    return time_cpu(op, 1)
 
 
 def main() -> None:

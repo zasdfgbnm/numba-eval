@@ -130,9 +130,9 @@ int main() {
   auto tensor = torch::empty(shape_b, options);
 
   auto start = std::chrono::high_resolution_clock::now();
+  auto out = tensor;
   for (int64_t i = 0; i < loops; ++i) {
-    auto out = emulate_chain(tensor, shape_a, shape_b);
-    (void)out;
+    out = emulate_chain(out, shape_a, shape_b);
   }
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);

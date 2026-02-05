@@ -28,9 +28,11 @@ def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
         handle = bridge.torch_cuda_empty(tensor.numel())
         out_ptr = bridge.torch_cuda_data_ptr(handle)
         in_ptr = tensor.data_ptr()
-        bridge.torch_cuda_launch_add(in_ptr, out_ptr, tensor.numel(), 1.0)
-        bridge.torch_cuda_launch_add(out_ptr, out_ptr, tensor.numel(), -1.0)
-        bridge.torch_cuda_launch_add(out_ptr, out_ptr, tensor.numel(), 0.0)
+        for idx in range(LOOPS):
+            bridge.torch_cuda_launch_add(in_ptr, out_ptr, tensor.numel(), 1.0)
+            bridge.torch_cuda_launch_add(out_ptr, out_ptr, tensor.numel(), -1.0)
+            bridge.torch_cuda_launch_add(out_ptr, out_ptr, tensor.numel(), 0.0)
+            in_ptr = out_ptr
 
     if use_numba:
         try:
@@ -38,7 +40,7 @@ def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
         except Exception as exc:  # pragma: no cover - environment dependent
             return float("nan"), f"numba unavailable: {exc}"
 
-    return time_cpu(op, LOOPS), "ok"
+    return time_cpu(op, 1), "ok"
 
 
 def main() -> None:

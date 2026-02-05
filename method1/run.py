@@ -9,13 +9,15 @@ from numba_eval.constants import LOOPS, SHAPE_A, SHAPE_B
 
 def method1_pytorch(tensor: torch.Tensor) -> float:
     def op() -> None:
-        out = tensor.add(1)
-        out = out.reshape(*SHAPE_A)
-        out = out.add(-1)
-        out = out.reshape(*SHAPE_B)
-        _ = out.add(0)
+        out = tensor
+        for _ in range(LOOPS):
+            out = out.add(1)
+            out = out.reshape(*SHAPE_A)
+            out = out.add(-1)
+            out = out.reshape(*SHAPE_B)
+            out = out.add(0)
 
-    return time_cpu(op, LOOPS)
+    return time_cpu(op, 1)
 
 
 def main() -> None:

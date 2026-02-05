@@ -11,13 +11,13 @@ int main() {
   auto tensor = torch::empty(shape_b, options);
 
   auto start = std::chrono::high_resolution_clock::now();
+  auto out = tensor;
   for (int64_t i = 0; i < loops; ++i) {
-    auto out = tensor.add(1);
+    out = out.add(1);
     out = out.reshape(shape_a);
     out = out.add(-1);
     out = out.reshape(shape_b);
     out = out.add(0);
-    (void)out;
   }
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
