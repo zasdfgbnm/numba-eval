@@ -45,22 +45,22 @@ std::filesystem::path resolve_common_kernel_path() {
     const auto root = exe.parent_path() / ".." / "..";
     const auto so = root / "common" / "libcommon.so";
     const auto dylib = root / "common" / "libcommon.dylib";
-    if (std::filesystem::exists(so, ec)) {
-      return so;
-    }
     if (std::filesystem::exists(dylib, ec)) {
       return dylib;
+    }
+    if (std::filesystem::exists(so, ec)) {
+      return so;
     }
   }
 
   // Fallback to working directory relative paths.
   const auto so = std::filesystem::path("common") / "libcommon.so";
   const auto dylib = std::filesystem::path("common") / "libcommon.dylib";
-  if (std::filesystem::exists(so, ec)) {
-    return so;
-  }
   if (std::filesystem::exists(dylib, ec)) {
     return dylib;
+  }
+  if (std::filesystem::exists(so, ec)) {
+    return so;
   }
 
   // Last resort: return the canonical target (error message will include it).
@@ -68,7 +68,7 @@ std::filesystem::path resolve_common_kernel_path() {
 }
 }  // namespace
 
-LaunchAddKernelFn load_common_kernel() {
+CommonApi load_common_api() {
   const std::string so_path = resolve_common_kernel_path().string();
 
   void* handle = dlopen(so_path.c_str(), RTLD_LAZY);
@@ -76,11 +76,26 @@ LaunchAddKernelFn load_common_kernel() {
     throw std::runtime_error("Failed to load common.so: " + so_path);
   }
 
-  auto fn = reinterpret_cast<LaunchAddKernelFn>(
-      dlsym(handle, "add1d"));
-  if (!fn) {
-    throw std::runtime_error("Failed to find add1d");
+  auto add_fn = reinterpret_cast<LaunchAddKernelFn>(dlsym(handle, "add"));
+  if (!add_fn) {
+    throw std::runtime_error("Failed to find add");
   }
-  return fn;
+
+  auto alloc_fn = reinterpret_cast<AllocateBufFn>(dlsym(handle, "allocate_buf"));
+  if (!alloc_fn) {
+    throw std::runtime_error("Failed to find allocate_buf");
+  }
+
+  auto free_fn = reinterpret_cast<FreeBufFn>(dlsym(handle, "free_buf"));
+  if (!free_fn) {
+    throw std::runtime_error("Failed to find free_buf");
+  }
+
+  CommonApi api;
+  api.handle = handle;
+  api.add = add_fn;
+  api.allocate_buf = alloc_fn;
+  api.free_buf = free_fn;
+  return api;
 }
 

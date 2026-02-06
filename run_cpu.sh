@@ -25,7 +25,15 @@ fi
 
 echo
 echo "==> Building common CPU kernel library"
-bash ./common/build_common_cpu.sh >/dev/null
+PYTHON_BIN="$(uv run python -c 'import sys; print(sys.executable)')"
+TORCH_PREFIX="$(uv run python -c 'import torch; print(torch.utils.cmake_prefix_path)')"
+cmake -S common -B common/build_cpu \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DNUMBA_EVAL_USE_CUDA=OFF \
+  -DPython3_EXECUTABLE="$PYTHON_BIN" \
+  -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" \
+  >/dev/null
+cmake --build common/build_cpu -j >/dev/null
 
 echo
 echo "==> Running Python scripts (CPU)"
@@ -41,23 +49,21 @@ echo "-- method5 (ctypes CPU fallback)"
 uv run python method5/run.py --device cpu
 
 echo
-echo "==> Building & running C++ benchmarks (CPU) if Torch_DIR is set"
+echo "==> Building & running C++ benchmarks (CPU)"
 if [[ -n "${Torch_DIR:-}" ]]; then
   echo "-- method2 (LibTorch C++)"
   rm -rf method2/build
   cmake -S method2 -B method2/build -DCMAKE_BUILD_TYPE=Release
   cmake --build method2/build -j
   ./method2/build/method2_libtorch --device cpu
-
-  echo
-  echo "-- method4 (custom emulation C++)"
-  rm -rf method4/build
-  cmake -S method4 -B method4/build -DCMAKE_BUILD_TYPE=Release
-  cmake --build method4/build -j
-  ./method4/build/method4_custom --device cpu
-else
-  echo "Skipping method2/method4: set Torch_DIR to your libtorch cmake dir to enable."
 fi
+
+echo
+echo "-- method4 (custom emulation C++)"
+rm -rf method4/build
+cmake -S method4 -B method4/build -DCMAKE_BUILD_TYPE=Release
+cmake --build method4/build -j
+./method4/build/method4_custom --device cpu
 
 echo
 echo "done."

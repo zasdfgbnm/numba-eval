@@ -98,12 +98,11 @@ std::vector<int64_t> compute_view_stride(const std::vector<int64_t>& shape,
 }
 }  // namespace
 
-std::pair<std::vector<int64_t>, std::vector<int64_t>> reshape_with_checks(
-    const std::vector<int64_t>& shape,
-    const std::vector<int64_t>& stride,
-    const std::vector<int64_t>& target_shape) {
-  auto inferred = infer_size(numel(shape), target_shape);
-  auto target_stride = compute_view_stride(shape, stride, inferred);
-  return {inferred, target_stride};
+TensorView reshape(const TensorView& in, const std::vector<int64_t>& target_shape) {
+  TensorView out;
+  out.ptr = in.ptr;
+  out.shape = infer_size(numel(in.shape), target_shape);
+  out.stride = compute_view_stride(in.shape, in.stride, out.shape);
+  return out;
 }
 

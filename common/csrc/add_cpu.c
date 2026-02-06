@@ -5,7 +5,7 @@
 //
 // This is intentionally simple: it's meant for measuring call overhead and
 // validating Numba ExternalFunction calls on machines without CUDA.
-__attribute__((visibility("default"))) void add1d(
+__attribute__((visibility("default"))) void add(
     const float* input,
     float* output,
     int64_t numel,

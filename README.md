@@ -4,17 +4,28 @@ Benchmark CPU overhead for repeated PyTorch add/reshape chains on a CUDA tensor.
 
 ## Repo Layout
 
-- `common/`: shared Python package (`numba_eval`) with timing utilities and shared CUDA kernel sources.
+- `common/`: shared Python modules (on `PYTHONPATH`) + shared CUDA kernel sources.
 - `method1/`: PyTorch Python baseline.
 - `method2/`: LibTorch C++ baseline.
 - `method3/`: Python emulation with explicit checks (uses common CUDA kernel).
 - `method4/`: C++ emulation with explicit checks (uses common CUDA kernel).
 - `method5/`: C/CUDA bridge (Numba-compatible) + Python harness.
 
-## Build the shared CUDA kernel (common.so)
+## Build the shared common library (`libcommon`)
+
+You normally don't need to run this manually: `run_cpu.sh` / `run_gpu.sh` will
+build it via CMake automatically.
+
+If you want to build it directly:
 
 ```bash
-./common/build_common.sh
+# CPU
+cmake -S common -B common/build_cpu -DCMAKE_BUILD_TYPE=Release -DNUMBA_EVAL_USE_CUDA=OFF
+cmake --build common/build_cpu -j
+
+# CUDA (requires nvcc + CUDA toolkit)
+cmake -S common -B common/build_cuda -DCMAKE_BUILD_TYPE=Release -DNUMBA_EVAL_USE_CUDA=ON
+cmake --build common/build_cuda -j
 ```
 
 ## UV Setup
@@ -52,6 +63,8 @@ cmake --build . -j
 ./method2_libtorch
 
 # Method 4 (custom emulation)
+# Note: method4 no longer depends on LibTorch; it only requires `libcommon`
+# to be built (see `run_cpu.sh` / `run_gpu.sh`).
 cd ../../method4
 mkdir -p build
 cd build

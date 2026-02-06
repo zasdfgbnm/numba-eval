@@ -1,51 +1,25 @@
 import argparse
 import json
+import math
 from typing import Sequence
 
-import torch
+from benchmark import time_cpu  # type: ignore[import-not-found]
+from allocate import allocate, free  # type: ignore[import-not-found]
+from chain import (  # type: ignore[import-not-found]
+    SHAPE_B,
+    emulate_add_reshape_chain,
+)
+from tensor_view import TensorView  # type: ignore[import-not-found]
 
-from numba_eval.benchmark import time_cpu
-from op_add import launch_add
-from op_reshape import reshape_with_checks
 
-
-SHAPE_A = (19, 17, 13, 11, 7, 5, 3, 2)
-SHAPE_B = (2, 3, 5, 7, 11, 13, 17, 19)
 LOOPS = 100
 
 
-def emulate_add_reshape_chain(
-    tensor: torch.Tensor,
-    shape_a: Sequence[int],
-    shape_b: Sequence[int],
-) -> torch.Tensor:
-    flat = tensor.reshape(-1)
-    shape: tuple[int, ...] = (flat.numel(),)
-    stride: tuple[int, ...] = (1,)
-
-    flat = launch_add(flat, 1.0)
-    shape, stride = reshape_with_checks(shape, stride, shape_a)
-    flat = launch_add(flat, -1.0)
-    shape, stride = reshape_with_checks(shape, stride, shape_b)
-    flat = launch_add(flat, 0.0)
-
-    output = torch.empty_strided(
-        shape_b,
-        stride,
-        device=tensor.device,
-        dtype=tensor.dtype,
-    )
-    output.view(-1).copy_(flat)
-    return output
-
-
-def method3_python_emulation(tensor: torch.Tensor) -> float:
-    def op() -> None:
-        out = tensor
-        for _ in range(LOOPS):
-            out = emulate_add_reshape_chain(out, SHAPE_A, SHAPE_B)
-
-    return time_cpu(op, 1)
+def _contiguous_stride(shape: Sequence[int]) -> tuple[int, ...]:
+    stride = [1] * len(shape)
+    for i in range(len(shape) - 2, -1, -1):
+        stride[i] = stride[i + 1] * int(shape[i + 1])
+    return tuple(int(s) for s in stride)
 
 
 def main() -> None:
@@ -53,10 +27,30 @@ def main() -> None:
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
 
-    device = torch.device(args.device)
+    # Device selection is controlled by which `libcommon` was built/loaded.
+    # Keep `--device` for CLI compatibility.
+    _ = args.device
 
-    tensor = torch.empty(SHAPE_B, device=device, dtype=torch.float32)
-    result = {"method3_python_emulation": method3_python_emulation(tensor)}
+    numel = int(math.prod(SHAPE_B))
+    in_ptr = allocate(numel * 4)  # float32 bytes
+    in_shape = tuple(int(d) for d in SHAPE_B)
+    in_stride = _contiguous_stride(SHAPE_B)
+
+    # Inline the timed op into main().
+    view = TensorView(ptr=in_ptr, shape=in_shape, stride=in_stride)
+
+    def op() -> None:
+        nonlocal view
+        for _ in range(LOOPS):
+            old_ptr = view.ptr
+            view = emulate_add_reshape_chain(view)
+            free(old_ptr)
+
+    seconds = time_cpu(op, 1)
+    # Free the final result *after* timing.
+    free(view.ptr)
+
+    result = {"method3_python_emulation": seconds}
     print(json.dumps(result, indent=2))
 
 

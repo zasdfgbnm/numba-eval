@@ -2,7 +2,6 @@
 #include <iostream>
 #include <string>
 #include <tuple>
-#include <torch/torch.h>
 #include <vector>
 
 #include "common_kernel.h"
@@ -10,7 +9,7 @@
 #include "op_reshape.h"
 
 namespace {
-torch::Device parse_device(int argc, char** argv) {
+std::string parse_device(int argc, char** argv) {
   // Simple flag parser: --device cpu|cuda
   std::string device = "cpu";
   for (int i = 1; i + 1 < argc; ++i) {
@@ -18,50 +17,66 @@ torch::Device parse_device(int argc, char** argv) {
       device = argv[i + 1];
     }
   }
-  if (device == "cuda") {
-    return torch::Device(torch::kCUDA);
-  }
-  return torch::Device(torch::kCPU);
+  return device;
 }
 
-at::Tensor emulate_chain(const at::Tensor& tensor,
-                         const std::vector<int64_t>& shape_a,
-                         const std::vector<int64_t>& shape_b,
-                         LaunchAddKernelFn kernel) {
-  auto flat = tensor.view({tensor.numel()});
-  std::vector<int64_t> shape = {flat.numel()};
-  std::vector<int64_t> stride = {1};
+std::vector<int64_t> contiguous_stride(const std::vector<int64_t>& shape) {
+  std::vector<int64_t> stride(shape.size(), 1);
+  for (int64_t i = static_cast<int64_t>(shape.size()) - 2; i >= 0; --i) {
+    stride[static_cast<size_t>(i)] =
+        stride[static_cast<size_t>(i + 1)] * shape[static_cast<size_t>(i + 1)];
+  }
+  return stride;
+}
 
-  flat = launch_add(flat, 1.0f, kernel);
-  std::tie(shape, stride) = reshape_with_checks(shape, stride, shape_a);
-  flat = launch_add(flat, -1.0f, kernel);
-  std::tie(shape, stride) = reshape_with_checks(shape, stride, shape_b);
-  flat = launch_add(flat, 0.0f, kernel);
+TensorView emulate_chain(const TensorView& in, const CommonApi& api) {
+  const std::vector<int64_t> shape_a = {19, 17, 13, 11, 7, 5, 3, 2};
+  const std::vector<int64_t> shape_b = {2, 3, 5, 7, 11, 13, 17, 19};
 
-  auto options = tensor.options();
-  auto output = torch::empty_strided(shape_b, stride, options);
-  output.view({-1}).copy_(flat);
-  return output;
+  auto tmp1 = add(in, 1.0f, api);
+  auto v1 = reshape(tmp1, shape_a);
+  auto tmp2 = add(v1, -1.0f, api);
+  api.free_buf(tmp1.ptr);
+
+  auto v2 = reshape(tmp2, shape_b);
+  auto tmp3 = add(v2, 0.0f, api);
+  api.free_buf(tmp2.ptr);
+
+  return tmp3;
 }
 }  // namespace
 
 int main(int argc, char** argv) {
-  const std::vector<int64_t> shape_a = {19, 17, 13, 11, 7, 5, 3, 2};
-  const std::vector<int64_t> shape_b = {2, 3, 5, 7, 11, 13, 17, 19};
   const int64_t loops = 100;
 
-  const auto dev = parse_device(argc, argv);
-  auto options = torch::TensorOptions().device(dev).dtype(torch::kFloat32);
-  auto tensor = torch::empty(shape_b, options);
-  auto kernel = load_common_kernel();
+  // Device selection is controlled by which `libcommon` was built/loaded.
+  // Keep `--device` for CLI compatibility.
+  (void)parse_device(argc, argv);
+
+  const std::vector<int64_t> shape_b = {2, 3, 5, 7, 11, 13, 17, 19};
+  const auto stride_b = contiguous_stride(shape_b);
+
+  auto api = load_common_api();
+  int64_t numel_b = 1;
+  for (auto d : shape_b) {
+    numel_b *= d;
+  }
+  TensorView view;
+  view.ptr = api.allocate_buf(numel_b * static_cast<int64_t>(sizeof(float)));
+  view.shape = shape_b;
+  view.stride = stride_b;
 
   auto start = std::chrono::high_resolution_clock::now();
-  auto out = tensor;
+  auto out = view;
   for (int64_t i = 0; i < loops; ++i) {
-    out = emulate_chain(out, shape_a, shape_b, kernel);
+    const auto old_ptr = out.ptr;
+    out = emulate_chain(out, api);
+    api.free_buf(old_ptr);
   }
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
+  // Free final result after timing.
+  api.free_buf(out.ptr);
   std::cout << "method4_custom_seconds=" << duration.count() << std::endl;
   return 0;
 }

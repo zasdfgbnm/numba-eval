@@ -8,3 +8,4 @@ def time_cpu(fn: Callable[[], None], iters: int) -> float:
         fn()
     end = time.perf_counter()
     return end - start
+

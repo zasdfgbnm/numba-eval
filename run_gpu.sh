@@ -34,7 +34,15 @@ fi
 echo
 echo "==> Building common CUDA kernel library"
 if command -v nvcc >/dev/null 2>&1; then
-  bash ./common/build_common.sh >/dev/null
+  PYTHON_BIN="$(uv run python -c 'import sys; print(sys.executable)')"
+  TORCH_PREFIX="$(uv run python -c 'import torch; print(torch.utils.cmake_prefix_path)')"
+  cmake -S common -B common/build_cuda \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DNUMBA_EVAL_USE_CUDA=ON \
+    -DPython3_EXECUTABLE="$PYTHON_BIN" \
+    -DCMAKE_PREFIX_PATH="$TORCH_PREFIX" \
+    >/dev/null
+  cmake --build common/build_cuda -j >/dev/null
 else
   echo "error: nvcc not found. Install CUDA toolkit or add nvcc to PATH." >&2
   exit 1
@@ -56,23 +64,21 @@ NUMBA_EVAL_BRIDGE="$(uv run python method5/build_bridge.py)"
 uv run python method5/run.py --device cuda
 
 echo
-echo "==> (Optional) build & run method4 (C++), requires Torch_DIR"
+echo "==> C++ benchmarks"
 if [[ -n "${Torch_DIR:-}" ]]; then
   echo "-- method2 (LibTorch C++)"
   rm -rf method2/build
   cmake -S method2 -B method2/build -DCMAKE_BUILD_TYPE=Release
   cmake --build method2/build -j
   ./method2/build/method2_libtorch --device cuda
-
-  echo
-  echo "-- method4 (custom emulation C++)"
-  rm -rf method4/build
-  cmake -S method4 -B method4/build -DCMAKE_BUILD_TYPE=Release
-  cmake --build method4/build -j
-  ./method4/build/method4_custom --device cuda
-else
-  echo "Skipping method2/method4: set Torch_DIR to your libtorch cmake dir to enable."
 fi
+
+echo
+echo "-- method4 (custom emulation C++)"
+rm -rf method4/build
+cmake -S method4 -B method4/build -DCMAKE_BUILD_TYPE=Release
+cmake --build method4/build -j
+./method4/build/method4_custom --device cuda
 
 echo
 echo "done."

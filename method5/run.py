@@ -2,11 +2,13 @@ import argparse
 import json
 import os
 import ctypes
+import sys
 from typing import Tuple
 
 import torch  # type: ignore[import-not-found]
 
-from numba_eval.benchmark import time_cpu  # type: ignore[import-untyped]
+from benchmark import time_cpu  # type: ignore[import-not-found]
+from allocate import allocate, free  # type: ignore[import-not-found]
 
 
 SHAPE_B = (2, 3, 5, 7, 11, 13, 17, 19)
@@ -23,10 +25,16 @@ def _load_common_kernel() -> ctypes.CDLL:
     common_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "common")
     )
-    candidates = [
-        os.path.join(common_dir, "libcommon.so"),
-        os.path.join(common_dir, "libcommon.dylib"),
-    ]
+    if sys.platform == "darwin":
+        candidates = [
+            os.path.join(common_dir, "libcommon.dylib"),
+            os.path.join(common_dir, "libcommon.so"),
+        ]
+    else:
+        candidates = [
+            os.path.join(common_dir, "libcommon.so"),
+            os.path.join(common_dir, "libcommon.dylib"),
+        ]
     so_path = next((p for p in candidates if os.path.exists(p)), None)
     if so_path is None:
         raise FileNotFoundError(
@@ -34,13 +42,13 @@ def _load_common_kernel() -> ctypes.CDLL:
         )
 
     lib = ctypes.CDLL(so_path)
-    lib.add1d.argtypes = [
+    lib.add.argtypes = [
         ctypes.c_uint64,
         ctypes.c_uint64,
         ctypes.c_int64,
         ctypes.c_float,
     ]
-    lib.add1d.restype = None
+    lib.add.restype = None
     _COMMON_KERNEL = lib
     return lib
 
@@ -66,7 +74,8 @@ def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
     kernel = _load_common_kernel()
 
     def op() -> None:
-        _handle = bridge.torch_cuda_empty(tensor.numel())
+        # Intentionally allocate inside the bridge to measure call overhead.
+        bridge.torch_cuda_empty(tensor.numel())
         in_ptr = tensor.data_ptr()
         out_tensor = torch.empty_strided(
             SHAPE_B,
@@ -76,19 +85,19 @@ def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
         )
         out_ptr = out_tensor.data_ptr()
         for _ in range(LOOPS):
-            kernel.add1d(
+            kernel.add(
                 ctypes.c_uint64(in_ptr),
                 ctypes.c_uint64(out_ptr),
                 ctypes.c_int64(tensor.numel()),
                 ctypes.c_float(1.0),
             )
-            kernel.add1d(
+            kernel.add(
                 ctypes.c_uint64(out_ptr),
                 ctypes.c_uint64(out_ptr),
                 ctypes.c_int64(tensor.numel()),
                 ctypes.c_float(-1.0),
             )
-            kernel.add1d(
+            kernel.add(
                 ctypes.c_uint64(out_ptr),
                 ctypes.c_uint64(out_ptr),
                 ctypes.c_int64(tensor.numel()),
@@ -106,39 +115,40 @@ def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
 
 
 def method5_ctypes_cpu(tensor: torch.Tensor) -> float:
-    """CPU-only fallback: call add1d via ctypes on CPU tensors."""
+    """CPU-only fallback: call add via ctypes on CPU tensors."""
     if tensor.device.type != "cpu":
         raise RuntimeError("method5_ctypes_cpu expects a CPU tensor")
     if tensor.dtype != torch.float32:
-        raise TypeError(f"add1d expects float32 tensor, got {tensor.dtype}")
+        raise TypeError(f"add expects float32 tensor, got {tensor.dtype}")
 
     kernel = _load_common_kernel()
-    out = torch.empty_like(tensor)
+    out_ptr = allocate(tensor.numel() * tensor.element_size())
 
     def op() -> None:
         in_ptr = tensor.data_ptr()
-        out_ptr = out.data_ptr()
         for _ in range(LOOPS):
-            kernel.add1d(
+            kernel.add(
                 ctypes.c_uint64(in_ptr),
                 ctypes.c_uint64(out_ptr),
                 ctypes.c_int64(tensor.numel()),
                 ctypes.c_float(1.0),
             )
-            kernel.add1d(
+            kernel.add(
                 ctypes.c_uint64(out_ptr),
                 ctypes.c_uint64(out_ptr),
                 ctypes.c_int64(tensor.numel()),
                 ctypes.c_float(-1.0),
             )
-            kernel.add1d(
+            kernel.add(
                 ctypes.c_uint64(out_ptr),
                 ctypes.c_uint64(out_ptr),
                 ctypes.c_int64(tensor.numel()),
                 ctypes.c_float(0.0),
             )
 
-    return time_cpu(op, 1)
+    t = time_cpu(op, 1)
+    free(out_ptr)
+    return t
 
 
 def main() -> None:
@@ -147,7 +157,13 @@ def main() -> None:
     args = parser.parse_args()
 
     device = torch.device(args.device)
-    tensor = torch.empty(SHAPE_B, device=device, dtype=torch.float32)
+    # Avoid torch.empty / empty_like; use empty_strided for initial tensor.
+    tensor = torch.empty_strided(
+        SHAPE_B,
+        _contiguous_stride(SHAPE_B),
+        device=device,
+        dtype=torch.float32,
+    )
 
     if device.type == "cuda":
         results: dict[str, float | str] = {}
