@@ -15,9 +15,9 @@ immediately (fail-fast).
 import os
 import sys
 
-from llvmlite import binding  # type: ignore[import-not-found]
-from numba import njit  # type: ignore[import-not-found]
-from numba.core import types, typing  # type: ignore[import-not-found]
+from llvmlite import binding  # type: ignore[import-not-found]  # noqa: PGH003
+from numba import njit  # type: ignore[import-not-found]  # noqa: PGH003
+from numba.core import types, typing  # type: ignore[import-not-found]  # noqa: PGH003
 
 
 __all__ = [

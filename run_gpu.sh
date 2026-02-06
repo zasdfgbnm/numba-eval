@@ -58,7 +58,7 @@ echo "-- method3 (Python emulation + common kernel)"
 uv run python method3/run.py --device cuda
 
 echo
-echo "-- method5 (method3 + optional Numba JIT)"
+echo "-- method5 (method3 + Numba JIT)"
 uv run python method5/run.py --device cuda
 
 echo

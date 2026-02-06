@@ -24,7 +24,9 @@ def _infer_size(numel: int, shape: Sequence[int]) -> tuple[int, ...]:
             inferred[idx] = -1
         else:
             if dim <= 0:
-                raise ValueError("Shape dims must be positive or -1 for infer.")
+                raise ValueError(
+                    "Shape dims must be positive or -1 for infer."
+                )
             known_product *= dim
             inferred[idx] = dim
 
