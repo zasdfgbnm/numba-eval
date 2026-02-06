@@ -35,6 +35,13 @@ def _load_common_kernel() -> ctypes.CDLL:
     return lib
 
 
+def _contiguous_stride(shape: Tuple[int, ...]) -> Tuple[int, ...]:
+    stride = [1] * len(shape)
+    for i in range(len(shape) - 2, -1, -1):
+        stride[i] = stride[i + 1] * shape[i + 1]
+    return tuple(stride)
+
+
 def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
     ext_path = os.environ.get("NUMBA_EVAL_BRIDGE")
     if not ext_path or not os.path.exists(ext_path):
@@ -50,8 +57,9 @@ def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
 
     def op() -> None:
         handle = bridge.torch_cuda_empty(tensor.numel())
-        out_ptr = bridge.torch_cuda_data_ptr(handle)
         in_ptr = tensor.data_ptr()
+        out_tensor = torch.empty_strided(SHAPE_B, _contiguous_stride(SHAPE_B), device=tensor.device, dtype=tensor.dtype)
+        out_ptr = out_tensor.data_ptr()
         for _ in range(LOOPS):
             kernel.common_launch_add_kernel(
                 ctypes.c_uint64(in_ptr),

@@ -123,19 +123,24 @@ def _launch_add(tensor: torch.Tensor, value: float) -> torch.Tensor:
     return output
 
 
-def reshape_with_checks(tensor: torch.Tensor, target_shape: Sequence[int]) -> torch.Tensor:
-    shape = tuple(int(dim) for dim in tensor.shape)
-    stride = tuple(int(dim) for dim in tensor.stride())
+def reshape_with_checks(shape: Sequence[int], stride: Sequence[int], target_shape: Sequence[int]) -> Tuple[Tuple[int, ...], Tuple[int, ...]]:
     numel = math.prod(shape)
     inferred = _infer_size(numel, target_shape)
     target_stride = _compute_view_stride(shape, stride, inferred)
-    return torch.as_strided(tensor, size=inferred, stride=target_stride)
+    return inferred, target_stride
 
 
 def emulate_add_reshape_chain(tensor: torch.Tensor, shape_a: Sequence[int], shape_b: Sequence[int]) -> torch.Tensor:
-    out = _launch_add(tensor, 1.0)
-    out = reshape_with_checks(out, shape_a)
-    out = _launch_add(out, -1.0)
-    out = reshape_with_checks(out, shape_b)
-    out = _launch_add(out, 0.0)
-    return out
+    flat = tensor.reshape(-1)
+    shape = (flat.numel(),)
+    stride = (1,)
+
+    flat = _launch_add(flat, 1.0)
+    shape, stride = reshape_with_checks(shape, stride, shape_a)
+    flat = _launch_add(flat, -1.0)
+    shape, stride = reshape_with_checks(shape, stride, shape_b)
+    flat = _launch_add(flat, 0.0)
+
+    output = torch.empty_strided(shape_b, stride, device=tensor.device, dtype=tensor.dtype)
+    output.view(-1).copy_(flat)
+    return output

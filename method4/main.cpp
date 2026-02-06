@@ -131,24 +131,33 @@ at::Tensor launch_add(const at::Tensor& tensor, float value, LaunchAddKernelFn k
   return output;
 }
 
-at::Tensor reshape_with_checks(const at::Tensor& tensor, const std::vector<int64_t>& shape) {
-  auto sizes = tensor.sizes().vec();
-  auto strides = tensor.strides().vec();
-  auto inferred = infer_size(tensor.numel(), shape);
-  auto target_stride = compute_view_stride(sizes, strides, inferred);
-  return tensor.as_strided(inferred, target_stride);
+std::pair<std::vector<int64_t>, std::vector<int64_t>> reshape_with_checks(
+    const std::vector<int64_t>& shape,
+    const std::vector<int64_t>& stride,
+    const std::vector<int64_t>& target_shape) {
+  auto inferred = infer_size(numel(shape), target_shape);
+  auto target_stride = compute_view_stride(shape, stride, inferred);
+  return {inferred, target_stride};
 }
 
 at::Tensor emulate_chain(const at::Tensor& tensor,
                          const std::vector<int64_t>& shape_a,
                          const std::vector<int64_t>& shape_b,
                          LaunchAddKernelFn kernel) {
-  auto out = launch_add(tensor, 1.0f, kernel);
-  out = reshape_with_checks(out, shape_a);
-  out = launch_add(out, -1.0f, kernel);
-  out = reshape_with_checks(out, shape_b);
-  out = launch_add(out, 0.0f, kernel);
-  return out;
+  auto flat = tensor.view({tensor.numel()});
+  std::vector<int64_t> shape = {flat.numel()};
+  std::vector<int64_t> stride = {1};
+
+  flat = launch_add(flat, 1.0f, kernel);
+  std::tie(shape, stride) = reshape_with_checks(shape, stride, shape_a);
+  flat = launch_add(flat, -1.0f, kernel);
+  std::tie(shape, stride) = reshape_with_checks(shape, stride, shape_b);
+  flat = launch_add(flat, 0.0f, kernel);
+
+  auto options = tensor.options();
+  auto output = torch::empty_strided(shape_b, stride, options);
+  output.view({-1}).copy_(flat);
+  return output;
 }
 }  // namespace
 
