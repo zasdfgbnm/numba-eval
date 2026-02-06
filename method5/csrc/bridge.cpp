@@ -26,21 +26,8 @@ extern "C" __attribute__((visibility("default"))) void torch_cuda_release(int64_
   g_tensors[handle] = at::Tensor();
 }
 
-void launch_add_kernel(const float* input, float* output, int64_t numel, float alpha);
-
-extern "C" __attribute__((visibility("default"))) void torch_cuda_launch_add(
-    uint64_t in_ptr,
-    uint64_t out_ptr,
-    int64_t numel,
-    float alpha) {
-  auto input = reinterpret_cast<const float*>(in_ptr);
-  auto output = reinterpret_cast<float*>(out_ptr);
-  launch_add_kernel(input, output, numel, alpha);
-}
-
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("torch_cuda_empty", &torch_cuda_empty, "Allocate CUDA tensor (numel)");
   m.def("torch_cuda_data_ptr", &torch_cuda_data_ptr, "Get data pointer from handle");
   m.def("torch_cuda_release", &torch_cuda_release, "Release handle");
-  m.def("torch_cuda_launch_add", &torch_cuda_launch_add, "Launch add kernel");
 }

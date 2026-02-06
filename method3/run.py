@@ -27,6 +27,10 @@ def main() -> None:
     args = parser.parse_args()
 
     device = torch.device(args.device)
+    if device.type != "cuda":
+        print(json.dumps({"method3_error": "method3 requires CUDA for common kernel"}, indent=2))
+        return
+
     tensor = torch.empty(SHAPE_B, device=device, dtype=torch.float32)
     result = {"method3_python_emulation": method3_python_emulation(tensor)}
     print(json.dumps(result, indent=2))

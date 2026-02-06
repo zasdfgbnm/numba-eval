@@ -1,7 +1,25 @@
 #include <chrono>
+#include <cstdlib>
+#include <dlfcn.h>
 #include <iostream>
 #include <numeric>
 #include <torch/torch.h>
+
+using LaunchAddKernelFn = void (*)(const float*, float*, int64_t, float);
+
+LaunchAddKernelFn load_common_kernel() {
+  const char* env_path = std::getenv("NUMBA_EVAL_COMMON_SO");
+  std::string so_path = env_path ? env_path : "common/libcommon.so";
+  void* handle = dlopen(so_path.c_str(), RTLD_LAZY);
+  if (!handle) {
+    throw std::runtime_error("Failed to load common.so: " + so_path);
+  }
+  auto fn = reinterpret_cast<LaunchAddKernelFn>(dlsym(handle, "common_launch_add_kernel"));
+  if (!fn) {
+    throw std::runtime_error("Failed to find common_launch_add_kernel");
+  }
+  return fn;
+}
 
 namespace {
 int64_t numel(const std::vector<int64_t>& shape) {
@@ -14,10 +32,6 @@ std::vector<int64_t> contiguous_stride(const std::vector<int64_t>& shape) {
     stride[i] = stride[i + 1] * shape[i + 1];
   }
   return stride;
-}
-
-bool is_contiguous(const std::vector<int64_t>& shape, const std::vector<int64_t>& stride) {
-  return stride == contiguous_stride(shape);
 }
 
 std::vector<int64_t> infer_size(int64_t total, const std::vector<int64_t>& shape) {
@@ -49,43 +63,59 @@ std::vector<int64_t> infer_size(int64_t total, const std::vector<int64_t>& shape
   return inferred;
 }
 
-bool can_view(const std::vector<int64_t>& shape,
-              const std::vector<int64_t>& stride,
-              const std::vector<int64_t>& new_shape) {
-  if (numel(shape) != numel(new_shape)) {
-    return false;
-  }
-  if (is_contiguous(shape, stride)) {
-    return true;
-  }
-  std::vector<int64_t> view_dims;
-  std::vector<int64_t> view_strides;
-  for (size_t i = 0; i < shape.size(); ++i) {
-    auto size = shape[i];
-    auto st = stride[i];
-    if (size == 1) {
-      continue;
-    }
-    if (!view_dims.empty() && view_strides.back() == st * size) {
-      view_dims.back() *= size;
-    } else {
-      view_dims.push_back(size);
-      view_strides.push_back(st);
-    }
-  }
-  if (view_dims.empty()) {
-    return true;
-  }
-  return view_strides == contiguous_stride(view_dims);
-}
-
 std::vector<int64_t> compute_view_stride(const std::vector<int64_t>& shape,
                                          const std::vector<int64_t>& stride,
                                          const std::vector<int64_t>& new_shape) {
-  if (!can_view(shape, stride, new_shape)) {
-    throw std::runtime_error("View not compatible");
+  if (numel(shape) != numel(new_shape)) {
+    throw std::runtime_error("Reshape numel mismatch");
   }
-  return contiguous_stride(new_shape);
+  if (shape.empty()) {
+    return {};
+  }
+
+  std::vector<int64_t> view_stride(new_shape.size(), 0);
+  int64_t view_dim = static_cast<int64_t>(new_shape.size()) - 1;
+  int64_t chunk_base_stride = stride.back();
+  int64_t tensor_numel = 1;
+  int64_t view_numel = 1;
+
+  for (int64_t tensor_dim = static_cast<int64_t>(shape.size()) - 1; tensor_dim >= 0; --tensor_dim) {
+    tensor_numel *= shape[tensor_dim];
+    bool at_chunk_end = tensor_dim == 0;
+    if (!at_chunk_end) {
+      auto expected = shape[tensor_dim] * stride[tensor_dim];
+      if (shape[tensor_dim - 1] != 1 && stride[tensor_dim - 1] != expected) {
+        at_chunk_end = true;
+      }
+    }
+
+    if (at_chunk_end) {
+      while (view_dim >= 0 && (view_numel < tensor_numel || new_shape[view_dim] == 1)) {
+        view_stride[view_dim] = chunk_base_stride * view_numel;
+        view_numel *= new_shape[view_dim];
+        --view_dim;
+      }
+      if (view_numel != tensor_numel) {
+        throw std::runtime_error("View not compatible");
+      }
+      if (tensor_dim > 0) {
+        chunk_base_stride = stride[tensor_dim - 1];
+        tensor_numel = 1;
+        view_numel = 1;
+      }
+    }
+  }
+
+  while (view_dim >= 0) {
+    if (new_shape[view_dim] != 1) {
+      throw std::runtime_error("View not compatible");
+    }
+    view_stride[view_dim] = chunk_base_stride * view_numel;
+    view_numel *= new_shape[view_dim];
+    --view_dim;
+  }
+
+  return view_stride;
 }
 
 std::pair<int64_t, int64_t> launch_config(int64_t total, int64_t threads = 256) {
@@ -93,12 +123,12 @@ std::pair<int64_t, int64_t> launch_config(int64_t total, int64_t threads = 256) 
   return {blocks, threads};
 }
 
-at::Tensor launch_add(const at::Tensor& tensor, double value) {
+at::Tensor launch_add(const at::Tensor& tensor, float value, LaunchAddKernelFn kernel) {
   auto total = tensor.numel();
-  auto contiguous = tensor.is_contiguous();
-  (void)contiguous;
   launch_config(total);
-  return tensor.add(value);
+  auto output = torch::empty_like(tensor);
+  kernel(tensor.data_ptr<float>(), output.data_ptr<float>(), total, value);
+  return output;
 }
 
 at::Tensor reshape_with_checks(const at::Tensor& tensor, const std::vector<int64_t>& shape) {
@@ -111,12 +141,13 @@ at::Tensor reshape_with_checks(const at::Tensor& tensor, const std::vector<int64
 
 at::Tensor emulate_chain(const at::Tensor& tensor,
                          const std::vector<int64_t>& shape_a,
-                         const std::vector<int64_t>& shape_b) {
-  auto out = launch_add(tensor, 1.0);
+                         const std::vector<int64_t>& shape_b,
+                         LaunchAddKernelFn kernel) {
+  auto out = launch_add(tensor, 1.0f, kernel);
   out = reshape_with_checks(out, shape_a);
-  out = launch_add(out, -1.0);
+  out = launch_add(out, -1.0f, kernel);
   out = reshape_with_checks(out, shape_b);
-  out = launch_add(out, 0.0);
+  out = launch_add(out, 0.0f, kernel);
   return out;
 }
 }  // namespace
@@ -128,11 +159,12 @@ int main() {
 
   auto options = torch::TensorOptions().device(torch::kCUDA).dtype(torch::kFloat32);
   auto tensor = torch::empty(shape_b, options);
+  auto kernel = load_common_kernel();
 
   auto start = std::chrono::high_resolution_clock::now();
   auto out = tensor;
   for (int64_t i = 0; i < loops; ++i) {
-    out = emulate_chain(out, shape_a, shape_b);
+    out = emulate_chain(out, shape_a, shape_b, kernel);
   }
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(end - start);

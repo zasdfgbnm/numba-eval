@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import ctypes
 from typing import Tuple
 
 import torch
@@ -11,10 +12,30 @@ from numba_eval.benchmark import time_cpu
 SHAPE_B = (2, 3, 5, 7, 11, 13, 17, 19)
 LOOPS = 100
 
+_COMMON_KERNEL = None
+
+
+def _load_common_kernel() -> ctypes.CDLL:
+    global _COMMON_KERNEL
+    if _COMMON_KERNEL is not None:
+        return _COMMON_KERNEL
+    default_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "common", "libcommon.so"))
+    so_path = os.environ.get("NUMBA_EVAL_COMMON_SO", default_path)
+    if not os.path.exists(so_path):
+        raise FileNotFoundError(f"common.so not found at {so_path}")
+    lib = ctypes.CDLL(so_path)
+    lib.common_launch_add_kernel.argtypes = [
+        ctypes.c_uint64,
+        ctypes.c_uint64,
+        ctypes.c_int64,
+        ctypes.c_float,
+    ]
+    lib.common_launch_add_kernel.restype = None
+    _COMMON_KERNEL = lib
+    return lib
+
 
 def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
-    import ctypes
-
     ext_path = os.environ.get("NUMBA_EVAL_BRIDGE")
     if not ext_path or not os.path.exists(ext_path):
         return float("nan"), "bridge library not found (set NUMBA_EVAL_BRIDGE)"
@@ -24,17 +45,32 @@ def method5_bridge(tensor: torch.Tensor, use_numba: bool) -> Tuple[float, str]:
     bridge.torch_cuda_empty.restype = ctypes.c_int64
     bridge.torch_cuda_data_ptr.argtypes = [ctypes.c_int64]
     bridge.torch_cuda_data_ptr.restype = ctypes.c_uint64
-    bridge.torch_cuda_launch_add.argtypes = [ctypes.c_uint64, ctypes.c_uint64, ctypes.c_int64, ctypes.c_float]
-    bridge.torch_cuda_launch_add.restype = None
+
+    kernel = _load_common_kernel()
 
     def op() -> None:
         handle = bridge.torch_cuda_empty(tensor.numel())
         out_ptr = bridge.torch_cuda_data_ptr(handle)
         in_ptr = tensor.data_ptr()
         for _ in range(LOOPS):
-            bridge.torch_cuda_launch_add(in_ptr, out_ptr, tensor.numel(), 1.0)
-            bridge.torch_cuda_launch_add(out_ptr, out_ptr, tensor.numel(), -1.0)
-            bridge.torch_cuda_launch_add(out_ptr, out_ptr, tensor.numel(), 0.0)
+            kernel.common_launch_add_kernel(
+                ctypes.c_uint64(in_ptr),
+                ctypes.c_uint64(out_ptr),
+                ctypes.c_int64(tensor.numel()),
+                ctypes.c_float(1.0),
+            )
+            kernel.common_launch_add_kernel(
+                ctypes.c_uint64(out_ptr),
+                ctypes.c_uint64(out_ptr),
+                ctypes.c_int64(tensor.numel()),
+                ctypes.c_float(-1.0),
+            )
+            kernel.common_launch_add_kernel(
+                ctypes.c_uint64(out_ptr),
+                ctypes.c_uint64(out_ptr),
+                ctypes.c_int64(tensor.numel()),
+                ctypes.c_float(0.0),
+            )
             in_ptr = out_ptr
 
     if use_numba:

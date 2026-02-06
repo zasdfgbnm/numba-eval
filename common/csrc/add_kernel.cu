@@ -9,7 +9,11 @@ __global__ void add_kernel(const float* input, float* output, int64_t numel, flo
   }
 }
 
-void launch_add_kernel(const float* input, float* output, int64_t numel, float alpha) {
+extern "C" __attribute__((visibility("default"))) void common_launch_add_kernel(
+    const float* input,
+    float* output,
+    int64_t numel,
+    float alpha) {
   const int threads = 256;
   const int blocks = static_cast<int>((numel + threads - 1) / threads);
   add_kernel<<<blocks, threads>>>(input, output, numel, alpha);
