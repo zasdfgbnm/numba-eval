@@ -13,7 +13,6 @@ __pycache__
 *.obj
 *.pdb
 .mypy_cache/
-common/build_cpu/
-common/build_cuda/
-common/build/
-method4/build/
+build_cpu
+build_cuda
+build

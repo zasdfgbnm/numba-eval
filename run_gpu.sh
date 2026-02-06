@@ -54,15 +54,13 @@ echo "-- method1 (PyTorch baseline)"
 uv run python method1/run.py --device cuda
 
 echo
-if [[ -n "${Torch_DIR:-}" ]]; then
-  echo "-- method2 (LibTorch C++)"
-  rm -rf method2/build
-  cmake -S method2 -B method2/build -DCMAKE_BUILD_TYPE=Release
-  cmake --build method2/build -j
-  ./method2/build/method2_libtorch --device cuda
-else
-  echo "-- method2 (LibTorch C++) [skipped: Torch_DIR not set]"
-fi
+echo "-- method2 (LibTorch C++)"
+rm -rf method2/build
+cmake -S method2 -B method2/build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
+cmake --build method2/build -j
+./method2/build/method2_libtorch --device cuda
 
 echo
 echo "-- method3 (Python emulation + common kernel)"
