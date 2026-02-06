@@ -45,7 +45,7 @@ echo "-- method3 (Python emulation)"
 uv run python method3/run.py --device cpu
 
 echo
-echo "-- method5 (ctypes CPU fallback)"
+echo "-- method5 (method3 + optional Numba JIT)"
 uv run python method5/run.py --device cpu
 
 echo

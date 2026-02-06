@@ -49,7 +49,7 @@ endif()
 target_include_directories(common PRIVATE ${TORCH_INCLUDE_DIRS})
 target_link_libraries(common PRIVATE ${TORCH_LIBRARIES})
 
-# Keep output name/location stable for ctypes loaders.
+# Keep output name/location stable for Python loaders.
 set_target_properties(common PROPERTIES
   OUTPUT_NAME "common"
   LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"

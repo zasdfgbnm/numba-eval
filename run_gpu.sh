@@ -58,9 +58,7 @@ echo "-- method3 (Python emulation + common kernel)"
 uv run python method3/run.py --device cuda
 
 echo
-echo "-- method5 (build bridge + run)"
-export NUMBA_EVAL_BRIDGE
-NUMBA_EVAL_BRIDGE="$(uv run python method5/build_bridge.py)"
+echo "-- method5 (method3 + optional Numba JIT)"
 uv run python method5/run.py --device cuda
 
 echo

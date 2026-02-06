@@ -33,7 +33,6 @@ cmake --build common/build_cuda -j
 ```bash
 uv venv
 uv pip install -e .
-uv pip install "numba-eval[numba]"  # optional for method5a
 ```
 
 ## Python Benchmarks (Method 1/3/5)
@@ -45,9 +44,7 @@ uv run python method1/run.py --device cuda
 # Method 3 (Python emulation)
 uv run python method3/run.py --device cuda
 
-# Method 5 (C/CUDA bridge)
-uv run python method5/build_bridge.py
-export NUMBA_EVAL_BRIDGE=$(uv run python -c "import method5.build_bridge as b; print(b.build_bridge())")
+# Method 5 (method3 + Numba JIT)
 uv run python method5/run.py --device cuda
 ```
 
@@ -77,4 +74,4 @@ cmake --build . -j
 
 - The timing is **CPU-only** and does **not** include `cudaDeviceSynchronize`.
 - Method 3/4 intentionally keep all checks explicit and unoptimized to emulate compiler-generated code.
-- Method 5 uses a CUDA kernel with a C ABI to keep it compatible with Numba's `cfunc` calling convention.
+- Method 5 uses the same C ABI (`libcommon`) and can optionally JIT the chain with Numba.

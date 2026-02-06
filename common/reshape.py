@@ -1,33 +1,39 @@
-import math
 from typing import Sequence
 
 from tensor_view import TensorView
 
 
+def _prod_ints(xs: Sequence[int]) -> int:
+    p = 1
+    for x in xs:
+        p *= int(x)
+    return int(p)
+
+
 def _infer_size(numel: int, shape: Sequence[int]) -> tuple[int, ...]:
-    inferred: list[int] = []
+    inferred: list[int] = [0] * len(shape)
     unknown_dim = -1
     known_product = 1
+
     for idx, dim in enumerate(shape):
+        dim = int(dim)
         if dim == -1:
             if unknown_dim != -1:
                 raise ValueError("Only one dimension can be inferred.")
             unknown_dim = idx
-            inferred.append(-1)
+            inferred[idx] = -1
         else:
             if dim <= 0:
-                raise ValueError(
-                    "Shape dims must be positive or -1 for infer."
-                )
-            known_product *= int(dim)
-            inferred.append(int(dim))
+                raise ValueError("Shape dims must be positive or -1 for infer.")
+            known_product *= dim
+            inferred[idx] = dim
 
     if unknown_dim != -1:
         if numel % known_product != 0:
             raise ValueError("Inferred dimension is not integral.")
         inferred[unknown_dim] = numel // known_product
 
-    if math.prod(inferred) != numel:
+    if _prod_ints(inferred) != int(numel):
         raise ValueError("Reshape numel mismatch.")
     return tuple(int(dim) for dim in inferred)
 
@@ -37,7 +43,7 @@ def _compute_view_stride(
     stride: Sequence[int],
     new_shape: Sequence[int],
 ) -> tuple[int, ...]:
-    if math.prod(shape) != math.prod(new_shape):
+    if _prod_ints(shape) != _prod_ints(new_shape):
         raise ValueError("Reshape numel mismatch.")
     if not shape:
         return ()
@@ -83,7 +89,7 @@ def _compute_view_stride(
 
 def reshape(view: TensorView, target_shape: Sequence[int]) -> TensorView:
     """Return a new TensorView with updated shape/stride (ptr unchanged)."""
-    numel = math.prod(view.shape)
+    numel = _prod_ints(view.shape)
     shape = _infer_size(int(numel), target_shape)
     stride = _compute_view_stride(view.shape, view.stride, shape)
     return TensorView(ptr=view.ptr, shape=shape, stride=stride)
