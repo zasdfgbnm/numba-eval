@@ -12,3 +12,4 @@ __pycache__
 *.exp
 *.obj
 *.pdb
+.mypy_cache/

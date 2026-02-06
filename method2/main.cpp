@@ -1,13 +1,31 @@
 #include <chrono>
 #include <iostream>
+#include <string>
 #include <torch/torch.h>
 
-int main() {
+namespace {
+torch::Device parse_device(int argc, char** argv) {
+  // Simple flag parser: --device cpu|cuda
+  std::string device = "cpu";
+  for (int i = 1; i + 1 < argc; ++i) {
+    if (std::string(argv[i]) == "--device") {
+      device = argv[i + 1];
+    }
+  }
+  if (device == "cuda") {
+    return torch::Device(torch::kCUDA);
+  }
+  return torch::Device(torch::kCPU);
+}
+}  // namespace
+
+int main(int argc, char** argv) {
   const std::vector<int64_t> shape_a = {19, 17, 13, 11, 7, 5, 3, 2};
   const std::vector<int64_t> shape_b = {2, 3, 5, 7, 11, 13, 17, 19};
   const int64_t loops = 100;
 
-  auto options = torch::TensorOptions().device(torch::kCUDA).dtype(torch::kFloat32);
+  const auto dev = parse_device(argc, argv);
+  auto options = torch::TensorOptions().device(dev).dtype(torch::kFloat32);
   auto tensor = torch::empty(shape_b, options);
 
   auto start = std::chrono::high_resolution_clock::now();

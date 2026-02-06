@@ -15,14 +15,12 @@ Benchmark CPU overhead for repeated PyTorch add/reshape chains on a CUDA tensor.
 
 ```bash
 ./common/build_common.sh
-export NUMBA_EVAL_COMMON_SO=$PWD/common/libcommon.so
 ```
 
 ## UV Setup
 
 ```bash
 uv venv
-source .venv/bin/activate
 uv pip install -e .
 uv pip install "numba-eval[numba]"  # optional for method5a
 ```
@@ -31,15 +29,15 @@ uv pip install "numba-eval[numba]"  # optional for method5a
 
 ```bash
 # Method 1 (PyTorch Python)
-python method1/run.py --device cuda
+uv run python method1/run.py --device cuda
 
 # Method 3 (Python emulation)
-python method3/run.py --device cuda
+uv run python method3/run.py --device cuda
 
 # Method 5 (C/CUDA bridge)
-python method5/build_bridge.py
-export NUMBA_EVAL_BRIDGE=$(python -c "import method5.build_bridge as b; print(b.build_bridge())")
-python method5/run.py --device cuda
+uv run python method5/build_bridge.py
+export NUMBA_EVAL_BRIDGE=$(uv run python -c "import method5.build_bridge as b; print(b.build_bridge())")
+uv run python method5/run.py --device cuda
 ```
 
 ## C++ Benchmarks (Method 2/4)

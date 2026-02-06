@@ -6,15 +6,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Torch REQUIRED)
 
-add_executable(method4_custom main.cpp)
+add_executable(
+  method4_custom
+  main.cpp
+  common_kernel.cpp
+  op_add.cpp
+  op_reshape.cpp
+)
 target_link_libraries(method4_custom "${TORCH_LIBRARIES}")
 set_property(TARGET method4_custom PROPERTY CXX_STANDARD 17)
-
-if (MSVC)
-  file(GLOB TORCH_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")
-  add_custom_command(TARGET method4_custom
-      POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      ${TORCH_DLLS}
-      $<TARGET_FILE_DIR:method4_custom>)
-endif (MSVC)
