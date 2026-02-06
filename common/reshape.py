@@ -81,19 +81,9 @@ def _compute_view_stride(
     return tuple(int(s) for s in view_stride)
 
 
-def reshape_with_checks(
-    shape: Sequence[int],
-    stride: Sequence[int],
-    target_shape: Sequence[int],
-) -> tuple[tuple[int, ...], tuple[int, ...]]:
-    """Compute inferred shape + view-compatible stride (or raise)."""
-    numel = math.prod(shape)
-    inferred = _infer_size(int(numel), target_shape)
-    target_stride = _compute_view_stride(shape, stride, inferred)
-    return inferred, target_stride
-
-
 def reshape(view: TensorView, target_shape: Sequence[int]) -> TensorView:
     """Return a new TensorView with updated shape/stride (ptr unchanged)."""
-    shape, stride = reshape_with_checks(view.shape, view.stride, target_shape)
+    numel = math.prod(view.shape)
+    shape = _infer_size(int(numel), target_shape)
+    stride = _compute_view_stride(view.shape, view.stride, shape)
     return TensorView(ptr=view.ptr, shape=shape, stride=stride)
