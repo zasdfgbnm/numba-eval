@@ -36,27 +36,24 @@ cmake -S common -B common/build_cpu \
 cmake --build common/build_cpu -j >/dev/null
 
 echo
-echo "==> Running Python scripts (CPU)"
+echo "==> Running benchmarks (CPU)"
 echo "-- method1 (PyTorch baseline)"
 uv run python method1/run.py --device cpu
 
 echo
-echo "-- method3 (Python emulation)"
-uv run python method3/run.py --device cpu
-
-echo
-echo "-- method5 (method3 + Numba JIT)"
-uv run python method5/run.py --device cpu
-
-echo
-echo "==> Building & running C++ benchmarks (CPU)"
 if [[ -n "${Torch_DIR:-}" ]]; then
   echo "-- method2 (LibTorch C++)"
   rm -rf method2/build
   cmake -S method2 -B method2/build -DCMAKE_BUILD_TYPE=Release
   cmake --build method2/build -j
   ./method2/build/method2_libtorch --device cpu
+else
+  echo "-- method2 (LibTorch C++) [skipped: Torch_DIR not set]"
 fi
+
+echo
+echo "-- method3 (Python emulation + common kernel)"
+uv run python method3/run.py --device cpu
 
 echo
 echo "-- method4 (custom emulation C++)"
@@ -64,6 +61,10 @@ rm -rf method4/build
 cmake -S method4 -B method4/build -DCMAKE_BUILD_TYPE=Release
 cmake --build method4/build -j
 ./method4/build/method4_custom --device cpu
+
+echo
+echo "-- method5 (method3 + Numba JIT)"
+uv run python method5/run.py --device cpu
 
 echo
 echo "done."
