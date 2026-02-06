@@ -9,7 +9,7 @@ __global__ void add_kernel(const float* input, float* output, int64_t numel, flo
   }
 }
 
-extern "C" __attribute__((visibility("default"))) void common_launch_add_kernel(
+extern "C" __attribute__((visibility("default"))) void add1d(
     const float* input,
     float* output,
     int64_t numel,
