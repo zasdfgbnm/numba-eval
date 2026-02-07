@@ -17,12 +17,10 @@ def _get(jit: bool):
 
     def emulate_add_reshape_chain(inp: TensorView) -> TensorView:
         """Emulate add/reshape chain on a TensorView."""
-        tmp1 = _add(inp, 1.0)
-        v1 = _reshape(tmp1, SHAPE_A)
-        tmp2 = _add(v1, -1.0)
-        _free(tmp1.ptr)
+        v1 = _reshape(inp, SHAPE_A)
+        tmp1 = _add(v1, 0.0)
 
-        v2 = _reshape(tmp2, SHAPE_B)
+        v2 = _reshape(tmp1, SHAPE_B)
         return v2
 
     if jit:

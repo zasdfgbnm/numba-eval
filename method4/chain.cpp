@@ -28,12 +28,10 @@ TensorView<kRank> emulate_chain(const TensorView<kRank>& in, const CommonApi& ap
   const std::array<int64_t, kRank> shape_a = {19, 17, 13, 11, 7, 5, 3, 2};
   const std::array<int64_t, kRank> shape_b = {2, 3, 5, 7, 11, 13, 17, 19};
 
-  auto tmp1 = add<kRank>(in, 1.0f, api);
-  auto v1 = reshape<kRank, kRank>(tmp1, shape_a);
-  auto tmp2 = add<kRank>(v1, -1.0f, api);
-  api.free_buf(tmp1.ptr);
+  auto v1 = reshape<kRank, kRank>(in, shape_a);
+  auto tmp1 = add<kRank>(v1, 0.0f, api);
 
-  auto v2 = reshape<kRank, kRank>(tmp2, shape_b);
+  auto v2 = reshape<kRank, kRank>(tmp1, shape_b);
 
   return {v2.ptr, v2.shape, v2.stride};
 }
