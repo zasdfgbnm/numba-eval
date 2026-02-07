@@ -102,6 +102,41 @@ iteration loop body is entirely removed.
 Both drop to near-zero. The Python→C call, `dlopen`, and per-invocation setup
 are negligible. **The entire gap is inside the 300 kernel dispatches.**
 
+## Experiment 5: Kernel Launch Removal
+
+**Hypothesis:** The `<<<>>>` kernel launch itself is the dominant cost in
+method 4.
+
+**Approach:** Commented out the single `add_kernel<<<...>>>` line in
+`common/csrc/add_kernel.cu`. The `add()` C function still computes `blocks`,
+`threads`, and fetches the current CUDA stream — it just doesn't launch.
+Method 2 is unchanged (LibTorch still launches its own kernels).
+
+**Result:**
+
+| Method | Full chain | No kernel launch |
+|--------|-----------|-----------------|
+| Method 2 (LibTorch) | ~2.02 ms | ~2.02 ms (unchanged) |
+| Method 4 (custom) | ~6.49 ms | **~0.25 ms** |
+
+Method 4 drops from ~6.5 ms to **0.25 ms**. The kernel launch accounts for
+**~6.2 ms** of the 6.5 ms total (~96%). The remaining 0.25 ms is the cost of
+300x alloc/free + reshape + C++ dispatch with no GPU work.
+
+**Per-launch cost comparison:**
+
+| | Total (ms) | Per launch (us) |
+|-|-----------|-----------------|
+| Method 4 `<<<>>>` | ~6.5 | ~21.7 |
+| Method 2 LibTorch kernel | ~2.0 | ~6.7 |
+| Method 4 without launch | ~0.25 | ~0.8 |
+
+Method 4's raw `<<<>>>` launch costs **~21.7 us** per call. LibTorch does
+the same work (kernel launch + alloc) in **~6.7 us**. The `<<<>>>` syntax
+compiles down to `cudaLaunchKernel`, while LibTorch may use a different
+launch mechanism (e.g. `cuLaunchKernel` via the driver API) or batch/optimize
+launches internally.
+
 ## What We Know
 
 1. **The gap is NOT in allocation/deallocation.** Stripping method 4's allocator
@@ -111,13 +146,14 @@ are negligible. **The entire gap is inside the 300 kernel dispatches.**
 3. **The gap is NOT in reshape.** Removing reshapes has zero effect.
 4. **The gap is NOT in per-invocation overhead.** No-op chains are near-zero
    for both methods.
-5. **The gap is entirely in the 300 per-iteration kernel dispatches.** Something
-   method 4 does differently *per kernel launch* compared to LibTorch's
-   `at::Tensor::add()` accounts for the full ~4.4 ms difference.
+5. **The gap IS the kernel launch.** Removing the `<<<>>>` launch drops method 4
+   from ~6.5 ms to ~0.25 ms. The raw CUDA kernel launch costs ~21.7 us/call vs
+   LibTorch's ~6.7 us/call — a 3.2x difference per launch, 300 launches.
 
 ## Open Questions
 
-- What does LibTorch's `at::add` dispatch path do differently per-launch that
-  makes it ~3x faster than a raw `<<<>>>` kernel launch + caching allocator
-  alloc/free?
-- Could `nsys` profiling reveal where the extra time is spent per-launch?
+- Why is `cudaLaunchKernel` (from `<<<>>>`) ~3x slower than LibTorch's internal
+  kernel launch path? Does LibTorch use the driver API (`cuLaunchKernel`)?
+- Could `nsys` profiling confirm whether the overhead is in the launch API call
+  itself or in some CUDA runtime bookkeeping around it?
+- Would switching method 4 to use `cuLaunchKernel` directly close the gap?
