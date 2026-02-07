@@ -1,0 +1,17 @@
+[project]
+name = "numba-eval"
+version = "0.1.0"
+description = "Benchmarks for PyTorch op-chain CPU overhead"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "torch",
+  "numba",
+  "llvmlite",
+]
+
+[tool.setuptools]
+package-dir = {"" = "common"}
+
+[tool.setuptools.packages.find]
+where = ["common"]
