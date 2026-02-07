@@ -123,37 +123,127 @@ Method 4 drops from ~6.5 ms to **0.25 ms**. The kernel launch accounts for
 **~6.2 ms** of the 6.5 ms total (~96%). The remaining 0.25 ms is the cost of
 300x alloc/free + reshape + C++ dispatch with no GPU work.
 
-**Per-launch cost comparison:**
+Note: without the kernel launch, `cudaLaunchKernel` never blocks (no GPU
+back-pressure), so the 0.25 ms reflects pure host-side work. The full 6.5 ms
+includes both GPU execution time and host stalls waiting for the GPU queue.
 
-| | Total (ms) | Per launch (us) |
-|-|-----------|-----------------|
-| Method 4 `<<<>>>` | ~6.5 | ~21.7 |
-| Method 2 LibTorch kernel | ~2.0 | ~6.7 |
-| Method 4 without launch | ~0.25 | ~0.8 |
+## Experiment 6: nsys Profiling
 
-Method 4's raw `<<<>>>` launch costs **~21.7 us** per call. LibTorch does
-the same work (kernel launch + alloc) in **~6.7 us**. The `<<<>>>` syntax
-compiles down to `cudaLaunchKernel`, while LibTorch may use a different
-launch mechanism (e.g. `cuLaunchKernel` via the driver API) or batch/optimize
-launches internally.
+**Goal:** Understand exactly where the time goes — is it host-side launch
+overhead or GPU kernel execution time?
+
+**Approach:** Profiled both methods with `nsys profile --stats=true -t cuda`.
+
+### CUDA API Summary (host-side)
+
+| API Call | Method 2 Calls | Method 2 Avg (ns) | Method 4 Calls | Method 4 Avg (ns) |
+|----------|---------------|-------------------|---------------|-------------------|
+| `cudaLaunchKernel` | 4500 | 4,865 | 4500 | 13,154 |
+| `cuKernelGetName` | 0 | — | 4500 | 60 |
+| `cuGetProcAddress_v2` | 0 | — | 475 | 249 |
+| `cuLibraryLoadData` | 0 | — | 1 | 74,240 |
+
+Method 4's `cudaLaunchKernel` average is inflated to 13.2 us, but this is
+**not** because the launch call itself is slow — it's because the call
+**blocks** when the GPU launch queue is full (back-pressure from slow GPU
+kernels). Method 4's `cudaLaunchKernel` call itself takes ~3 us, but the
+call stalls waiting for the GPU to finish previous kernels.
+
+### GPU Kernel Execution
+
+| | Kernel | Grid | Block | Regs/Thread | Avg GPU Time (ns) |
+|-|--------|------|-------|-------------|-------------------|
+| Method 2 | `vectorized_elementwise_kernel<4, ...>` | 9,473 x 1 x 1 | 128 x 1 x 1 | 32 | **7,615** |
+| Method 4 | `add_kernel` | 37,890 x 1 x 1 | 256 x 1 x 1 | 16 | **21,403** |
+
+Tensor has 9,699,690 elements (`2*3*5*7*11*13*17*19`).
+
+**Method 2 (LibTorch):** Uses `vectorized_elementwise_kernel<4>` which loads
+`float4` (4 floats per memory transaction). 128 threads/block, each thread
+processes ~8 elements (two `float4` loads with grid-stride loop). Only **9,473
+blocks** needed.
+
+**Method 4 (custom):** Scalar kernel — 1 float per thread, 256 threads/block.
+Requires **37,890 blocks** (4x more) with scalar memory access.
+
+### Pipeline Analysis: Who's the Bottleneck?
+
+Since `cudaLaunchKernel` is asynchronous, the host and GPU operate as a
+pipeline. The wall-clock time is determined by whichever stage is slower.
+
+**Inter-kernel gaps on GPU:**
+
+| | Avg gap between consecutive GPU kernels |
+|-|----------------------------------------|
+| Method 2 | **20.6 us** (GPU starved — idle between kernels) |
+| Method 4 | **7.7 us** (GPU nearly saturated) |
+
+**Inter-launch gaps on host (start-to-start):**
+
+| | Avg time between consecutive `cudaLaunchKernel` starts |
+|-|-------------------------------------------------------|
+| Method 2 | **9.9 us** |
+| Method 4 | **16.7 us** |
+
+**Method 2 is host-bottlenecked.** Its GPU kernels finish in 7.6 us, but the
+host takes ~9.9 us to dispatch the next one (LibTorch's C++ dispatch: tensor
+metadata, allocator, op dispatch). The GPU sits idle for ~20 us between
+kernels — it could go faster if the host dispatched faster.
+
+**Method 4 is GPU-bottlenecked.** Its host dispatch is actually *faster* (~6 us
+for alloc + C function pointer call + launch) but the GPU kernel takes 21.4 us.
+The host submits faster than the GPU can execute, the launch queue fills up, and
+`cudaLaunchKernel` stalls (blocking inside the call) until a slot opens. This
+is why the measured `cudaLaunchKernel` duration averages 13.2 us despite the
+actual submission taking only ~3 us.
+
+### Root Cause
+
+The 2.8x GPU kernel execution time difference (21.4 us vs 7.6 us) comes from:
+
+1. **No vectorized memory access.** Method 4's kernel loads/stores one `float`
+   per thread. LibTorch's kernel uses `float4` (128-bit) loads/stores, achieving
+   4x better memory throughput per transaction.
+2. **4x more thread blocks.** 37,890 vs 9,473 blocks. More blocks means more
+   scheduling overhead on the GPU and less work per thread.
+
+The GPU kernel quality difference causes method 4 to be GPU-bound, while
+method 2 (with its fast kernel) is host-bound. The wall clock reflects
+whichever bottleneck dominates: method 4's slow GPU kernel (6.5 ms) vs
+method 2's host dispatch overhead (2.1 ms).
+
+## Summary
+
+| | Method 2 | Method 4 |
+|-|----------|----------|
+| Host dispatch per op | ~9.9 us | ~6 us |
+| GPU kernel per op | 7.6 us | 21.4 us |
+| Bottleneck | **Host** (dispatch) | **GPU** (kernel) |
+| Wall clock (300 ops) | ~2.1 ms | ~6.5 ms |
+
+Method 4's host-side dispatch is actually leaner than LibTorch's. But its
+naive scalar GPU kernel is 2.8x slower. Since method 4 is GPU-bound, the
+wall clock is dominated by GPU kernel time.
+
+Ironically, method 2 has the opposite problem: its vectorized kernel is fast,
+but the host can't feed it fast enough — the GPU sits idle 73% of the time
+(20.6 us idle out of 28.2 us cycle). Improving method 2's host dispatch speed
+would improve its wall clock time.
 
 ## What We Know
 
-1. **The gap is NOT in allocation/deallocation.** Stripping method 4's allocator
-   down to bare `raw_alloc`/`raw_delete` (no Tensor, no map) has zero effect.
-2. **The gap is NOT from CUDA stream mismatch.** Launching on the correct
-   PyTorch stream has zero effect.
-3. **The gap is NOT in reshape.** Removing reshapes has zero effect.
-4. **The gap is NOT in per-invocation overhead.** No-op chains are near-zero
-   for both methods.
-5. **The gap IS the kernel launch.** Removing the `<<<>>>` launch drops method 4
-   from ~6.5 ms to ~0.25 ms. The raw CUDA kernel launch costs ~21.7 us/call vs
-   LibTorch's ~6.7 us/call — a 3.2x difference per launch, 300 launches.
+1. **The gap is NOT in allocation/deallocation.** (Experiment 1)
+2. **The gap is NOT from CUDA stream mismatch.** (Experiment 2)
+3. **The gap is NOT in reshape.** (Experiment 3)
+4. **The gap is NOT in per-invocation overhead.** (Experiment 4)
+5. **The gap IS GPU kernel execution time.** Method 4's scalar kernel takes
+   21.4 us vs LibTorch's vectorized kernel at 7.6 us. (Experiments 5 & 6)
+6. **Method 4's host dispatch is faster than LibTorch's** (~6 us vs ~9.9 us),
+   but this doesn't help because the GPU is the bottleneck.
 
 ## Open Questions
 
-- Why is `cudaLaunchKernel` (from `<<<>>>`) ~3x slower than LibTorch's internal
-  kernel launch path? Does LibTorch use the driver API (`cuLaunchKernel`)?
-- Could `nsys` profiling confirm whether the overhead is in the launch API call
-  itself or in some CUDA runtime bookkeeping around it?
-- Would switching method 4 to use `cuLaunchKernel` directly close the gap?
+- Would a vectorized `float4` kernel in method 4 match LibTorch's GPU
+  kernel performance and close the wall-clock gap?
+- If method 4's kernel were fast enough to make it host-bottlenecked (like
+  method 2), would its leaner dispatch path make it *faster* than LibTorch?
