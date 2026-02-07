@@ -241,9 +241,43 @@ would improve its wall clock time.
 6. **Method 4's host dispatch is faster than LibTorch's** (~6 us vs ~9.9 us),
    but this doesn't help because the GPU is the bottleneck.
 
-## Open Questions
+## Resolution: Vectorized Kernel
 
-- Would a vectorized `float4` kernel in method 4 match LibTorch's GPU
-  kernel performance and close the wall-clock gap?
-- If method 4's kernel were fast enough to make it host-bottlenecked (like
-  method 2), would its leaner dispatch path make it *faster* than LibTorch?
+Branch: `perf/vectorized-kernel`
+
+Two changes to `common/csrc/add_kernel.cu` closed the gap:
+
+1. **Vectorized memory access.** Replaced scalar per-thread loads with `float4`
+   (128-bit) loads/stores and a grid-stride loop, matching LibTorch's
+   `vectorized_elementwise_kernel<4>` pattern.
+2. **Halved grid size.** Sized the grid so each thread processes at least 2
+   `float4` loads (8 elements), matching LibTorch's grid sizing. This halved
+   the block count from 18,945 to 9,473.
+
+### Progression (nsys GPU kernel time, wall clock)
+
+| Version | Grid | GPU kernel (ns) | Wall clock (ms) |
+|---------|------|-----------------|-----------------|
+| Scalar (original) | 37,890 x 256 | 21,403 | 6.5 |
+| + float4 vectorization | 18,945 x 128 | 11,623 | 3.6 |
+| + halved grid (2 iters/thread) | 9,473 x 128 | 8,239 | **2.1** |
+| LibTorch (reference) | 9,473 x 128 | 7,615 | **2.1** |
+
+### Final nsys Comparison
+
+| Metric | Method 2 (LibTorch) | Method 4 (optimized) |
+|--------|--------------------|--------------------|
+| Wall clock | 2.05 ms | 2.09 ms |
+| GPU kernel avg | 7,615 ns | 8,239 ns |
+| `cudaLaunchKernel` avg | 4,865 ns | 3,483 ns |
+| Grid | 9,473 x 128 | 9,473 x 128 |
+| Bottleneck | Host (dispatch) | Host (dispatch) |
+
+Method 4 is now **host-bottlenecked** (like method 2), confirming our earlier
+prediction. Its leaner dispatch path (`cudaLaunchKernel` at 3.5 us vs
+LibTorch's 4.9 us) compensates for the slightly slower GPU kernel (8.2 us vs
+7.6 us), resulting in matched wall-clock times.
+
+The remaining ~600 ns GPU kernel gap is likely from LibTorch's more
+aggressively optimized template kernel (compile-time unrolling, fused
+functor inlining).
