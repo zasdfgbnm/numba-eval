@@ -14,7 +14,9 @@ if COMMON_DIR not in sys.path:
     sys.path.insert(0, COMMON_DIR)
 
 
-from tuple_utils import tuple_set_item  # type: ignore[import-not-found]  # noqa: E402
+from tuple_utils import (  # type: ignore[import-not-found]  # noqa: E402
+    tuple_set_item,
+)
 
 
 def test_tuple_set_item_python_semantics():
@@ -35,14 +37,14 @@ def test_tuple_set_item_python_raises():
 
 
 def test_tuple_set_item_numba_correctness():
-    @njit(cache=True)
+    @njit(cache=True, inline="always")
     def f():
         t = (1, 2, 3, 4)
         for i in range(4):
             t = tuple_set_item(t, i, i + 10)
         return t
 
-    @njit(cache=True)
+    @njit(cache=True, inline="always")
     def g():
         t = (1, 2, 3)
         return tuple_set_item(t, -1, 99)
@@ -54,7 +56,7 @@ def test_tuple_set_item_numba_correctness():
 def test_tuple_set_item_numba_no_nrt_allocations():
     # Heuristic check: for pure numeric tuples, the compiled IR should not
     # involve Numba's NRT heap allocations.
-    @njit(cache=True)
+    @njit(cache=True, inline="always")
     def f(i: int):
         t = (1, 2, 3, 4)
         return tuple_set_item(t, i, 7)
@@ -81,7 +83,9 @@ def test_tuple_set_item_numba_no_nrt_allocations():
         + r"\b[\s\S]*?\n}\n",
         llvm,
     )
-    assert m is not None, f"failed to locate native function body for {native_name}"
+    assert (
+        m is not None
+    ), f"failed to locate native function body for {native_name}"
     native_llvm = m.group(0)
 
     banned_call_patterns = [
@@ -103,4 +107,3 @@ def test_tuple_set_item_numba_no_nrt_allocations():
     assert hits == [], (
         "unexpected heap/NRT call(s) in native LLVM:\n" + "\n".join(hits)
     )
-

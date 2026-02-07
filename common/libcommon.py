@@ -17,7 +17,10 @@ import sys
 
 from llvmlite import binding  # type: ignore[import-not-found]  # noqa: PGH003
 from numba import njit  # type: ignore[import-not-found]  # noqa: PGH003
-from numba.core import types, typing  # type: ignore[import-not-found]  # noqa: PGH003
+from numba.core import (  # type: ignore[import-not-found]  # noqa: PGH003
+    types,
+    typing,
+)
 
 
 __all__ = [
@@ -75,16 +78,16 @@ c_add = types.ExternalFunction("add", add_sig)
 
 
 # Thin JIT wrappers (callable from Python too; compile on first call).
-@njit(PTR(INT), cache=True)
+@njit(PTR(INT), cache=True, inline="always")
 def allocate_buf(num_bytes):
     return c_allocate_buf(num_bytes)
 
 
-@njit(types.void(PTR), cache=True)
+@njit(types.void(PTR), cache=True, inline="always")
 def free_buf(ptr):
     c_free_buf(ptr)
 
 
-@njit(types.void(PTR, PTR, INT, F32), cache=True)
+@njit(types.void(PTR, PTR, INT, F32), cache=True, inline="always")
 def add(inp_ptr, out_ptr, numel, alpha):
     c_add(inp_ptr, out_ptr, numel, alpha)

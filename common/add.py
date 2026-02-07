@@ -25,7 +25,9 @@ def _get(jit: bool):
         return int(numel)
 
     if jit:
-        _check_contiguous = njit(_check_contiguous, cache=True)
+        _check_contiguous = njit(
+            _check_contiguous, cache=True, inline="always"
+        )
 
     _allocate = allocate_jit if jit else allocate
 
@@ -38,7 +40,7 @@ def _get(jit: bool):
         return TensorView(ptr=int(out_ptr), shape=inp.shape, stride=inp.stride)
 
     if jit:
-        add = njit(add, cache=True)
+        add = njit(add, cache=True, inline="always")
 
     return add
 

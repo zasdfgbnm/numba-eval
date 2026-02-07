@@ -126,9 +126,11 @@ def _get(jit: bool):
         return view_stride
 
     if jit:
-        _prod_ints = njit(_prod_ints, cache=True)
-        _infer_size = njit(_infer_size, cache=True)
-        _compute_view_stride = njit(_compute_view_stride, cache=True)
+        _prod_ints = njit(_prod_ints, cache=True, inline="always")
+        _infer_size = njit(_infer_size, cache=True, inline="always")
+        _compute_view_stride = njit(
+            _compute_view_stride, cache=True, inline="always"
+        )
 
     def reshape(view: TensorView, target_shape: tuple[int, ...]) -> TensorView:
         """Return a new TensorView with updated shape/stride."""
@@ -138,7 +140,7 @@ def _get(jit: bool):
         return TensorView(ptr=view.ptr, shape=out_shape, stride=out_stride)
 
     if jit:
-        reshape = njit(reshape, cache=True)
+        reshape = njit(reshape, cache=True, inline="always")
 
     return reshape
 

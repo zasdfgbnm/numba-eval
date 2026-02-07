@@ -25,7 +25,7 @@ def contiguous_stride(shape: tuple[int, ...]) -> tuple[int, ...]:
     return stride
 
 
-contiguous_stride_jit = njit(contiguous_stride, cache=True)
+contiguous_stride_jit = njit(contiguous_stride, cache=True, inline="always")
 
 
 __all__ = ["contiguous_stride", "contiguous_stride_jit"]

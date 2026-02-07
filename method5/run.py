@@ -22,7 +22,7 @@ LOOPS = 100
 _STRIDE_B = contiguous_stride(SHAPE_B)
 
 
-@njit(cache=True)
+@njit(cache=True, inline="always")
 def run_loops(ptr: int) -> int:
     # Tuples are immutable, so no need to copy.
     view = TensorView(ptr=ptr, shape=SHAPE_B, stride=_STRIDE_B)

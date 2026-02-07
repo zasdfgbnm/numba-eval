@@ -28,7 +28,9 @@ def _get(jit: bool):
         return tmp3
 
     if jit:
-        emulate_add_reshape_chain = njit(emulate_add_reshape_chain, cache=True)
+        emulate_add_reshape_chain = njit(
+            emulate_add_reshape_chain, cache=True, inline="always"
+        )
 
     return emulate_add_reshape_chain
 
