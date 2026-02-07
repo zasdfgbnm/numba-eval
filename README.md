@@ -41,33 +41,37 @@ uv pip install -e .
 # Method 1 (PyTorch Python)
 uv run python method1/run.py --device cuda
 
+# Method 2 (LibTorch C++ via nanobind)
+# (Build the bindings first; see below.)
+uv run python method2/run.py --device cuda
+
 # Method 3 (Python emulation)
 uv run python method3/run.py --device cuda
+
+# Method 4 (custom emulation C++ via nanobind)
+# (Build the bindings first; see below.)
+uv run python method4/run.py --device cuda
 
 # Method 5 (method3 + Numba JIT)
 uv run python method5/run.py --device cuda
 ```
 
-## C++ Benchmarks (Method 2/4)
+## Build Python bindings (nanobind) for Method 2/4
+
+This builds two Python extension modules into `common/`:
+- `method2_nb` (LibTorch baseline)
+- `method4_nb` (custom emulation)
 
 ```bash
-# Method 2 (LibTorch)
-export Torch_DIR=/path/to/libtorch/share/cmake/Torch
-mkdir -p method2/build
-cd method2/build
-cmake ..
-cmake --build . -j
-./method2_libtorch
-
-# Method 4 (custom emulation)
-# Note: method4 no longer depends on LibTorch; it only requires `libcommon`
-# to be built (see `run_cpu.sh` / `run_gpu.sh`).
-cd ../../method4
-mkdir -p build
-cd build
-cmake ..
-cmake --build . -j
-./method4_custom
+TORCH_PREFIX="$(uv run python -c 'import torch; print(torch.utils.cmake_prefix_path)')"
+# Use a Python that has development headers (Python.h). On macOS, Homebrew's
+# python@3.12 works well even if you run benchmarks via `uv run`.
+PYTHON_HEADERS_BIN="$(python3.12 -c 'import sys; print(sys.executable)')"
+cmake -S bindings -B bindings/build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DPython_EXECUTABLE="$PYTHON_HEADERS_BIN" \
+  -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
+cmake --build bindings/build -j
 ```
 
 ## Notes

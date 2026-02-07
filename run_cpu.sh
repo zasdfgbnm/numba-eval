@@ -36,29 +36,31 @@ cmake -S common -B common/build_cpu \
 cmake --build common/build_cpu -j >/dev/null
 
 echo
+echo "==> Building nanobind Python extensions (method2/method4)"
+rm -rf bindings/build
+PYTHON_HEADERS_BIN="$(python3.12 -c 'import sys; print(sys.executable)')"
+cmake -S bindings -B bindings/build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DPython_EXECUTABLE="$PYTHON_HEADERS_BIN" \
+  -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
+cmake --build bindings/build -j
+
+echo
 echo "==> Running benchmarks (CPU)"
 echo "-- method1 (PyTorch baseline)"
 uv run python method1/run.py --device cpu
 
 echo
-echo "-- method2 (LibTorch C++)"
-rm -rf method2/build
-cmake -S method2 -B method2/build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_PREFIX_PATH="$TORCH_PREFIX"
-cmake --build method2/build -j
-./method2/build/method2_libtorch --device cpu
+echo "-- method2 (LibTorch C++ via nanobind)"
+uv run python method2/run.py --device cpu
 
 echo
 echo "-- method3 (Python emulation + common kernel)"
 uv run python method3/run.py --device cpu
 
 echo
-echo "-- method4 (custom emulation C++)"
-rm -rf method4/build
-cmake -S method4 -B method4/build -DCMAKE_BUILD_TYPE=Release
-cmake --build method4/build -j
-./method4/build/method4_custom --device cpu
+echo "-- method4 (custom emulation C++ via nanobind)"
+uv run python method4/run.py --device cpu
 
 echo
 echo "-- method5 (method3 + Numba JIT)"

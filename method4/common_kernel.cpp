@@ -36,8 +36,33 @@ std::filesystem::path get_executable_path() {
 #endif
 }
 
+std::filesystem::path get_this_shared_object_path() {
+  Dl_info info;
+  if (dladdr(reinterpret_cast<const void*>(&get_this_shared_object_path), &info) != 0 &&
+      info.dli_fname) {
+    std::error_code ec;
+    return std::filesystem::weakly_canonical(std::filesystem::path(info.dli_fname), ec);
+  }
+  return {};
+}
+
 std::filesystem::path resolve_common_kernel_path() {
   std::error_code ec;
+
+  // 1) If we're in a shared library (e.g., a Python extension), prefer locating
+  // `libcommon` next to that library (repo layout puts both under `common/`).
+  const auto self = get_this_shared_object_path();
+  if (!self.empty()) {
+    const auto dir = self.parent_path();
+    const auto dylib = dir / "libcommon.dylib";
+    const auto so = dir / "libcommon.so";
+    if (std::filesystem::exists(dylib, ec)) {
+      return dylib;
+    }
+    if (std::filesystem::exists(so, ec)) {
+      return so;
+    }
+  }
 
   // Prefer locating relative to the executable, so running from method4/build works.
   const auto exe = get_executable_path();
@@ -73,7 +98,7 @@ CommonApi load_common_api() {
 
   void* handle = dlopen(so_path.c_str(), RTLD_LAZY);
   if (!handle) {
-    throw std::runtime_error("Failed to load common.so: " + so_path);
+    throw std::runtime_error("Failed to load libcommon: " + so_path);
   }
 
   auto add_fn = reinterpret_cast<LaunchAddKernelFn>(dlsym(handle, "add"));
