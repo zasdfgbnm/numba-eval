@@ -1,11 +1,12 @@
 #pragma once
 
 #include <cstdint>
-#include <utility>
-#include <vector>
+#include <array>
 
 #include "tensor_view.h"
 
 // Mirror method3: reshape operates on TensorView metadata (ptr unchanged).
-TensorView reshape(const TensorView& in, const std::vector<int64_t>& target_shape);
+template <int InRank, int OutRank>
+TensorView<OutRank> reshape(const TensorView<InRank>& in,
+                            const std::array<int64_t, OutRank>& target_shape);
 

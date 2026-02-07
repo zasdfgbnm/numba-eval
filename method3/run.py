@@ -6,7 +6,6 @@ from benchmark import time_cpu  # type: ignore[import-not-found]
 from allocate import allocate, free  # type: ignore[import-not-found]
 from chain import (  # type: ignore[import-not-found]
     SHAPE_B,
-    SHAPE_B_ARR,
     emulate_add_reshape_chain,
 )
 from stride import contiguous_stride  # type: ignore[import-not-found]
@@ -27,7 +26,7 @@ def main() -> None:
 
     numel = int(math.prod(SHAPE_B))
     in_ptr = allocate(numel * 4)  # float32 bytes
-    in_shape = SHAPE_B_ARR.copy()
+    in_shape = SHAPE_B
     in_stride = contiguous_stride(in_shape)
 
     # Inline the timed op into main().

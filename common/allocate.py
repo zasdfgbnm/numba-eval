@@ -11,14 +11,14 @@ def _get(jit: bool):
         return int(allocate_buf(int(num_bytes)))
 
     if jit:
-        allocate = njit(allocate, cache=True)
+        allocate = njit(allocate, cache=True, inline="always")
 
     def free(ptr: int) -> None:
         """Release a pointer previously returned by `allocate`."""
         free_buf(int(ptr))
 
     if jit:
-        free = njit(free, cache=True)
+        free = njit(free, cache=True, inline="always")
 
     return allocate, free
 

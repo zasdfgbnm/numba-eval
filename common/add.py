@@ -1,4 +1,3 @@
-import numpy as np
 from numba import njit  # type: ignore[import-untyped]
 
 from libcommon import add as _c_add  # type: ignore[import-not-found]
@@ -9,7 +8,7 @@ from tensor_view import TensorView
 
 def _get(jit: bool):
     def _check_contiguous(
-        shape: np.ndarray, stride: np.ndarray
+        shape: tuple[int, ...], stride: tuple[int, ...]
     ) -> int:
         # Keep error messages JIT-friendly (no f-strings).
         if len(shape) != len(stride):
@@ -26,7 +25,9 @@ def _get(jit: bool):
         return int(numel)
 
     if jit:
-        _check_contiguous = njit(_check_contiguous, cache=True)
+        _check_contiguous = njit(
+            _check_contiguous, cache=True, inline="always"
+        )
 
     _allocate = allocate_jit if jit else allocate
 
@@ -34,11 +35,12 @@ def _get(jit: bool):
         """Allocate a new temp buffer and run add into it."""
         numel = int(_check_contiguous(inp.shape, inp.stride))
         out_ptr = int(_allocate(int(numel) * 4))  # float32 bytes
-        _c_add(int(inp.ptr), int(out_ptr), int(numel), np.float32(value))
+        # `_c_add` expects float32; Numba will insert a cast in nopython mode.
+        _c_add(int(inp.ptr), int(out_ptr), int(numel), value)
         return TensorView(ptr=int(out_ptr), shape=inp.shape, stride=inp.stride)
 
     if jit:
-        add = njit(add, cache=True)
+        add = njit(add, cache=True, inline="always")
 
     return add
 

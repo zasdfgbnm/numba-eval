@@ -1,20 +1,22 @@
-import numpy as np
 from numba import njit  # type: ignore[import-untyped]
 
 from tensor_view import TensorView
+from tuple_utils import tuple_set_item
 
 
 def _get(jit: bool):
-    def _prod_ints(xs: np.ndarray) -> int:
+    def _prod_ints(xs: tuple[int, ...]) -> int:
         p = 1
         for x in xs:
             p *= int(x)
         return int(p)
 
-    def _infer_size(numel: int, shape: np.ndarray) -> np.ndarray:
-        """Return inferred shape (int64 ndarray), supporting one -1 dim."""
+    def _infer_size(numel: int, shape: tuple[int, ...]) -> tuple[int, ...]:
+        """Return inferred shape tuple, supporting one -1 dim."""
         n = int(len(shape))
-        inferred = np.empty(n, np.int64)
+        # Keep a fixed-length tuple type for Numba: start from `shape` and
+        # only update via `tuple_set_item` when needed.
+        inferred = shape
         unknown_dim = -1
         known_product = 1
 
@@ -24,17 +26,19 @@ def _get(jit: bool):
                 if unknown_dim != -1:
                     raise ValueError("Only one dimension can be inferred.")
                 unknown_dim = idx
-                inferred[idx] = -1
             else:
                 if dim <= 0:
-                    raise ValueError("Shape dims must be positive or -1 for infer.")
+                    raise ValueError(
+                        "Shape dims must be positive or -1 for infer."
+                    )
                 known_product *= dim
-                inferred[idx] = dim
 
         if unknown_dim != -1:
             if int(numel) % int(known_product) != 0:
                 raise ValueError("Inferred dimension is not integral.")
-            inferred[unknown_dim] = int(numel) // int(known_product)
+            inferred = tuple_set_item(
+                inferred, int(unknown_dim), int(numel) // int(known_product)
+            )
 
         prod = 1
         for i in range(n):
@@ -45,29 +49,36 @@ def _get(jit: bool):
         return inferred
 
     def _compute_view_stride(
-        shape: np.ndarray,
-        stride: np.ndarray,
-        new_shape: np.ndarray,
-    ) -> np.ndarray:
-        """Return view stride as an int64 ndarray."""
+        shape: tuple[int, ...],
+        stride: tuple[int, ...],
+        new_shape: tuple[int, ...],
+    ) -> tuple[int, ...]:
+        """Return view stride as a tuple[int, ...]."""
         if _prod_ints(shape) != _prod_ints(new_shape):
             raise ValueError("Reshape numel mismatch.")
 
         n = int(len(new_shape))
-        view_stride = np.empty(n, np.int64)
+        view_stride = new_shape
+        # Zero-initialize (can't use tuple * int in nopython mode).
         for i in range(n):
-            view_stride[i] = 0
+            view_stride = tuple_set_item(view_stride, int(i), 0)
 
         if n == 0:
             return view_stride
 
         if len(shape) == 0:
-            # Scalar view: any reshape with numel==1 is viewable, and the resulting
-            # view can be treated as contiguous.
-            view_stride[n - 1] = 1
+            # Scalar view: any reshape with numel==1 is viewable, and the
+            # resulting view can be treated as contiguous.
+            # Build from the rightmost dim to avoid any in-place updates.
+            contig = new_shape
+            contig = tuple_set_item(contig, int(n - 1), 1)
             for i in range(n - 2, -1, -1):
-                view_stride[i] = int(view_stride[i + 1]) * int(new_shape[i + 1])
-            return view_stride
+                contig = tuple_set_item(
+                    contig,
+                    int(i),
+                    int(contig[i + 1]) * int(new_shape[i + 1]),
+                )
+            return contig
 
         view_dim = n - 1
         chunk_base_stride = int(stride[-1])
@@ -87,7 +98,11 @@ def _get(jit: bool):
                 while view_dim >= 0 and (
                     view_numel < tensor_numel or int(new_shape[view_dim]) == 1
                 ):
-                    view_stride[view_dim] = int(chunk_base_stride) * int(view_numel)
+                    view_stride = tuple_set_item(
+                        view_stride,
+                        int(view_dim),
+                        int(chunk_base_stride) * int(view_numel),
+                    )
                     view_numel *= int(new_shape[view_dim])
                     view_dim -= 1
                 if view_numel != tensor_numel:
@@ -100,18 +115,24 @@ def _get(jit: bool):
         while view_dim >= 0:
             if int(new_shape[view_dim]) != 1:
                 raise ValueError("Reshape is not viewable without copy.")
-            view_stride[view_dim] = int(chunk_base_stride) * int(view_numel)
+            view_stride = tuple_set_item(
+                view_stride,
+                int(view_dim),
+                int(chunk_base_stride) * int(view_numel),
+            )
             view_numel *= int(new_shape[view_dim])
             view_dim -= 1
 
         return view_stride
 
     if jit:
-        _prod_ints = njit(_prod_ints, cache=True)
-        _infer_size = njit(_infer_size, cache=True)
-        _compute_view_stride = njit(_compute_view_stride, cache=True)
+        _prod_ints = njit(_prod_ints, cache=True, inline="always")
+        _infer_size = njit(_infer_size, cache=True, inline="always")
+        _compute_view_stride = njit(
+            _compute_view_stride, cache=True, inline="always"
+        )
 
-    def reshape(view: TensorView, target_shape: np.ndarray) -> TensorView:
+    def reshape(view: TensorView, target_shape: tuple[int, ...]) -> TensorView:
         """Return a new TensorView with updated shape/stride."""
         numel = _prod_ints(view.shape)
         out_shape = _infer_size(int(numel), target_shape)
@@ -119,7 +140,7 @@ def _get(jit: bool):
         return TensorView(ptr=view.ptr, shape=out_shape, stride=out_stride)
 
     if jit:
-        reshape = njit(reshape, cache=True)
+        reshape = njit(reshape, cache=True, inline="always")
 
     return reshape
 
