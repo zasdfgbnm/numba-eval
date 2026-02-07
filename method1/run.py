@@ -31,7 +31,7 @@ def main() -> None:
 
     device = torch.device(args.device)
     tensor = torch.empty(SHAPE_B, device=device, dtype=torch.float32)
-    result = {"method1_pytorch": method1_pytorch(tensor)}
+    result = {"method1_pytorch_ms": method1_pytorch(tensor)}
     print(json.dumps(result, indent=2))
 
 

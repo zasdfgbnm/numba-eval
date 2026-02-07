@@ -14,7 +14,7 @@ def main() -> None:
         method2_nb.run_chain(args.device)
 
     seconds = time_cpu(op, 1)
-    result = {"method2_libtorch_nanobind_seconds": seconds}
+    result = {"method2_libtorch_nanobind_ms": seconds}
     print(json.dumps(result, indent=2))
 
 
