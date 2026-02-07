@@ -169,14 +169,16 @@ Requires **37,890 blocks** (4x more) with scalar memory access.
 ### Pipeline Analysis: Who's the Bottleneck?
 
 Since `cudaLaunchKernel` is asynchronous, the host and GPU operate as a
-pipeline. The wall-clock time is determined by whichever stage is slower.
+pipeline. We initially hypothesized from the nsys inter-kernel gaps that
+method 2 was host-bottlenecked and method 4 was GPU-bottlenecked. However,
+a simpler experiment disproved this (see Correction below).
 
-**Inter-kernel gaps on GPU:**
+**Inter-kernel gaps on GPU (from nsys, with original scalar kernel):**
 
 | | Avg gap between consecutive GPU kernels |
 |-|----------------------------------------|
-| Method 2 | **20.6 us** (GPU starved — idle between kernels) |
-| Method 4 | **7.7 us** (GPU nearly saturated) |
+| Method 2 | **20.6 us** |
+| Method 4 | **7.7 us** |
 
 **Inter-launch gaps on host (start-to-start):**
 
@@ -185,19 +187,33 @@ pipeline. The wall-clock time is determined by whichever stage is slower.
 | Method 2 | **9.9 us** |
 | Method 4 | **16.7 us** |
 
-**Method 2 is host-bottlenecked.** Its GPU kernels finish in 7.6 us, but the
-host takes ~9.9 us to dispatch the next one (LibTorch's C++ dispatch: tensor
-metadata, allocator, op dispatch). The GPU sits idle for ~20 us between
-kernels — it could go faster if the host dispatched faster.
+### Correction: Both Methods Are Kernel-Bottlenecked
 
-**Method 4 is GPU-bottlenecked.** Its host dispatch is actually *faster* (~6 us
-for alloc + C function pointer call + launch) but the GPU kernel takes 21.4 us.
-The host submits faster than the GPU can execute, the launch queue fills up, and
-`cudaLaunchKernel` stalls (blocking inside the call) until a slot opens. This
-is why the measured `cudaLaunchKernel` duration averages 13.2 us despite the
-actual submission taking only ~3 us.
+The pipeline analysis above was **misleading**. Commenting out the kernel
+launch in method 4 (after optimization) gives a definitive answer:
 
-### Root Cause
+| Method | Description | Time (ms) |
+|--------|------------|-----------|
+| 4 | Full (optimized kernel) | 2.33 |
+| 4 (no launch) | `<<<>>>` commented out | **0.25** |
+
+Method 4's host-only path takes just 0.25 ms for 300 ops. The kernel
+launch + GPU execution adds the remaining 2.08 ms — that's **89%** of
+the wall-clock time. The host is clearly *not* the bottleneck.
+
+The same applies to method 2: its host dispatch overhead is a small
+fraction of the 2.03 ms wall clock. The 20 us inter-kernel gap on the
+GPU does not mean the GPU is starved — it means the launch queue buffers
+submissions and the wall clock is still dominated by total GPU execution
+time across all 300 kernels.
+
+**Both methods are kernel-bottlenecked.** The ~0.3 ms wall-clock difference
+between method 2 (2.03 ms) and method 4 (2.33 ms) after kernel optimization
+comes from method 4's extra host overhead (alloc/free/dispatch per op),
+which adds latency between kernel submissions and slightly increases
+inter-kernel GPU gaps.
+
+### Root Cause (of original 3.1x gap)
 
 The 2.8x GPU kernel execution time difference (21.4 us vs 7.6 us) comes from:
 
@@ -207,28 +223,14 @@ The 2.8x GPU kernel execution time difference (21.4 us vs 7.6 us) comes from:
 2. **4x more thread blocks.** 37,890 vs 9,473 blocks. More blocks means more
    scheduling overhead on the GPU and less work per thread.
 
-The GPU kernel quality difference causes method 4 to be GPU-bound, while
-method 2 (with its fast kernel) is host-bound. The wall clock reflects
-whichever bottleneck dominates: method 4's slow GPU kernel (6.5 ms) vs
-method 2's host dispatch overhead (2.1 ms).
-
-## Summary
+## Summary (Before Optimization)
 
 | | Method 2 | Method 4 |
 |-|----------|----------|
-| Host dispatch per op | ~9.9 us | ~6 us |
+| Host dispatch (300 ops) | ~included | ~0.25 ms |
 | GPU kernel per op | 7.6 us | 21.4 us |
-| Bottleneck | **Host** (dispatch) | **GPU** (kernel) |
+| Bottleneck | **Kernel** | **Kernel** |
 | Wall clock (300 ops) | ~2.1 ms | ~6.5 ms |
-
-Method 4's host-side dispatch is actually leaner than LibTorch's. But its
-naive scalar GPU kernel is 2.8x slower. Since method 4 is GPU-bound, the
-wall clock is dominated by GPU kernel time.
-
-Ironically, method 2 has the opposite problem: its vectorized kernel is fast,
-but the host can't feed it fast enough — the GPU sits idle 73% of the time
-(20.6 us idle out of 28.2 us cycle). Improving method 2's host dispatch speed
-would improve its wall clock time.
 
 ## What We Know
 
@@ -238,14 +240,19 @@ would improve its wall clock time.
 4. **The gap is NOT in per-invocation overhead.** (Experiment 4)
 5. **The gap IS GPU kernel execution time.** Method 4's scalar kernel takes
    21.4 us vs LibTorch's vectorized kernel at 7.6 us. (Experiments 5 & 6)
-6. **Method 4's host dispatch is faster than LibTorch's** (~6 us vs ~9.9 us),
-   but this doesn't help because the GPU is the bottleneck.
+6. **Both methods are kernel-bottlenecked.** Method 4's host-only path takes
+   just 0.25 ms for 300 ops; the kernel launch + GPU execution dominates.
+7. **Vectorizing the kernel closes the GPU kernel gap.** float4 loads +
+   halved grid + int32 indexing + unroll brings method 4's kernel to within
+   ~1.6% of LibTorch's (7,756 ns vs 7,635 ns).
+8. **The remaining 0.3 ms wall-clock gap is host overhead.** Method 4's
+   alloc/free/dispatch adds inter-kernel latency that stretches total GPU time.
 
 ## Resolution: Vectorized Kernel
 
 Branch: `perf/vectorized-kernel`
 
-Two changes to `common/csrc/add_kernel.cu` closed the gap:
+Three changes to `common/csrc/add_kernel.cu` closed the GPU kernel time gap:
 
 1. **Vectorized memory access.** Replaced scalar per-thread loads with `float4`
    (128-bit) loads/stores and a grid-stride loop, matching LibTorch's
@@ -253,6 +260,8 @@ Two changes to `common/csrc/add_kernel.cu` closed the gap:
 2. **Halved grid size.** Sized the grid so each thread processes at least 2
    `float4` loads (8 elements), matching LibTorch's grid sizing. This halved
    the block count from 18,945 to 9,473.
+3. **32-bit indexing + unroll hint.** Switched loop indices from `int64_t` to
+   `int` and added `#pragma unroll 2` to match LibTorch's codegen quality.
 
 ### Progression (nsys GPU kernel time, wall clock)
 
@@ -260,24 +269,24 @@ Two changes to `common/csrc/add_kernel.cu` closed the gap:
 |---------|------|-----------------|-----------------|
 | Scalar (original) | 37,890 x 256 | 21,403 | 6.5 |
 | + float4 vectorization | 18,945 x 128 | 11,623 | 3.6 |
-| + halved grid (2 iters/thread) | 9,473 x 128 | 8,239 | **2.1** |
-| LibTorch (reference) | 9,473 x 128 | 7,615 | **2.1** |
+| + halved grid (2 iters/thread) | 9,473 x 128 | 8,239 | 2.1 |
+| + int32 indexing + unroll | 9,473 x 128 | 7,756 | 2.33 |
+| LibTorch (reference) | 9,473 x 128 | 7,635 | 2.03 |
 
-### Final nsys Comparison
+GPU kernel times now match within ~1.6% (7,756 ns vs 7,635 ns).
 
-| Metric | Method 2 (LibTorch) | Method 4 (optimized) |
-|--------|--------------------|--------------------|
-| Wall clock | 2.05 ms | 2.09 ms |
-| GPU kernel avg | 7,615 ns | 8,239 ns |
-| `cudaLaunchKernel` avg | 4,865 ns | 3,483 ns |
-| Grid | 9,473 x 128 | 9,473 x 128 |
-| Bottleneck | Host (dispatch) | Host (dispatch) |
+### Final All-Methods Benchmark
 
-Method 4 is now **host-bottlenecked** (like method 2), confirming our earlier
-prediction. Its leaner dispatch path (`cudaLaunchKernel` at 3.5 us vs
-LibTorch's 4.9 us) compensates for the slightly slower GPU kernel (8.2 us vs
-7.6 us), resulting in matched wall-clock times.
+| Method | Description | Time (ms) |
+|--------|------------|-----------|
+| 1 | PyTorch Python API | 2.59 |
+| 2 | LibTorch C++ (nanobind) | **2.03** |
+| 3 | Python emulation | 4.16 |
+| 4 | Custom kernel (nanobind) | **2.33** |
+| 4 (no launch) | `<<<>>>` commented out | 0.25 |
+| 5 | Numba JIT | 2.34 |
 
-The remaining ~600 ns GPU kernel gap is likely from LibTorch's more
-aggressively optimized template kernel (compile-time unrolling, fused
-functor inlining).
+The remaining 0.3 ms gap between method 2 (2.03 ms) and method 4 (2.33 ms) is
+host-side overhead: method 4 spends 0.25 ms on alloc/free/dispatch (vs
+LibTorch's integrated path), which adds latency between kernel submissions
+and stretches the total GPU execution time.
