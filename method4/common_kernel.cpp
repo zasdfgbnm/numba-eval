@@ -54,6 +54,15 @@ std::filesystem::path resolve_common_kernel_path() {
   const auto self = get_this_shared_object_path();
   if (!self.empty()) {
     const auto dir = self.parent_path();
+    // Check lib/ subdirectory first (new layout).
+    const auto lib_dylib = dir / "lib" / "libcommon.dylib";
+    const auto lib_so = dir / "lib" / "libcommon.so";
+    if (std::filesystem::exists(lib_dylib, ec)) {
+      return lib_dylib;
+    }
+    if (std::filesystem::exists(lib_so, ec)) {
+      return lib_so;
+    }
     const auto dylib = dir / "libcommon.dylib";
     const auto so = dir / "libcommon.so";
     if (std::filesystem::exists(dylib, ec)) {
@@ -68,6 +77,14 @@ std::filesystem::path resolve_common_kernel_path() {
   const auto exe = get_executable_path();
   if (!exe.empty()) {
     const auto root = exe.parent_path() / ".." / "..";
+    const auto lib_so = root / "common" / "lib" / "libcommon.so";
+    const auto lib_dylib = root / "common" / "lib" / "libcommon.dylib";
+    if (std::filesystem::exists(lib_dylib, ec)) {
+      return lib_dylib;
+    }
+    if (std::filesystem::exists(lib_so, ec)) {
+      return lib_so;
+    }
     const auto so = root / "common" / "libcommon.so";
     const auto dylib = root / "common" / "libcommon.dylib";
     if (std::filesystem::exists(dylib, ec)) {
@@ -79,6 +96,14 @@ std::filesystem::path resolve_common_kernel_path() {
   }
 
   // Fallback to working directory relative paths.
+  const auto lib_so = std::filesystem::path("common") / "lib" / "libcommon.so";
+  const auto lib_dylib = std::filesystem::path("common") / "lib" / "libcommon.dylib";
+  if (std::filesystem::exists(lib_dylib, ec)) {
+    return lib_dylib;
+  }
+  if (std::filesystem::exists(lib_so, ec)) {
+    return lib_so;
+  }
   const auto so = std::filesystem::path("common") / "libcommon.so";
   const auto dylib = std::filesystem::path("common") / "libcommon.dylib";
   if (std::filesystem::exists(dylib, ec)) {
