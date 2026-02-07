@@ -79,3 +79,20 @@ cmake --build bindings/build -j
 - The timing is **CPU-only** and does **not** include `cudaDeviceSynchronize`.
 - Method 3/4 intentionally keep all checks explicit and unoptimized to emulate compiler-generated code.
 - Method 5 uses the same C ABI (`libcommon`) and can optionally JIT the chain with Numba.
+
+## Benchmark Results
+
+Measured on 4x NVIDIA GB200 (sm_100), CUDA 13.2, aarch64 Linux.
+Each iteration runs reshape-add(0)-reshape (100 iterations, 100 kernel launches).
+
+| Method | Description | Time (ms) |
+|--------|------------|-----------|
+| 1 | PyTorch Python API | 1.02 |
+| 2 | LibTorch C++ (nanobind) | 0.55 |
+| 3 | Python emulation | 2.83 |
+| 4 | Custom kernel (nanobind) | 0.33 |
+| 5 | Numba JIT | 0.31 |
+
+Methods 4 and 5 are fastest because their lean host dispatch paths (~3 us/op)
+outweigh LibTorch's heavier dispatch (~10 us/op) when GPU kernels are cheap.
+See `experiments/FINDINGS.md` for detailed profiling and analysis.

@@ -15,11 +15,9 @@ def method1_pytorch(tensor: torch.Tensor) -> float:
     def op() -> None:
         out = tensor
         for _ in range(LOOPS):
-            out = out.add(1)
             out = out.reshape(*SHAPE_A)
-            out = out.add(-1)
-            out = out.reshape(*SHAPE_B)
             out = out.add(0)
+            out = out.reshape(*SHAPE_B)
 
     return time_cpu(op, 1)
 

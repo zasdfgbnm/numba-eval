@@ -31,11 +31,9 @@ void run_method2_libtorch_chain(const std::string& device) {
 
   auto out = tensor;
   for (int64_t i = 0; i < kLoops; ++i) {
-    out = out.add(1);
     out = out.reshape(shape_a);
-    out = out.add(-1);
-    out = out.reshape(shape_b);
     out = out.add(0);
+    out = out.reshape(shape_b);
   }
 }
 
