@@ -65,23 +65,59 @@ No change. The stream mismatch was **not** causing allocator sync overhead on
 this system. The fix is still correct practice (avoids potential issues in
 multi-stream scenarios) and was merged, but it does not explain the gap.
 
+## Experiment 3: Reshape Removal
+
+**Hypothesis:** The `reshape` calls (2 per iteration, 200 total) add overhead
+in method 4's C++ `compute_view_stride` logic that LibTorch avoids.
+
+**Approach:** Removed both `reshape` calls from the loop body in both
+`method2/chain.cpp` and `method4/chain.cpp`, leaving only the 3 `add`
+operations per iteration.
+
+**Result:**
+
+| Method | With reshape | Without reshape |
+|--------|-------------|-----------------|
+| Method 2 (LibTorch) | ~2.09 ms | ~2.12 ms |
+| Method 4 (custom) | ~6.49 ms | ~6.50 ms |
+
+No change. Reshape is pure metadata manipulation (view on contiguous tensor)
+in both methods and costs essentially nothing.
+
+## Experiment 4: No-Op Chain
+
+**Hypothesis:** The overhead could be in the Python→C boundary, `dlopen`
+function-pointer setup, or other per-invocation fixed cost outside the loop.
+
+**Approach:** Made both chains no-ops — the function is called but the 100-
+iteration loop body is entirely removed.
+
+**Result:**
+
+| Method | Full chain | No-op |
+|--------|-----------|-------|
+| Method 2 (LibTorch) | ~2.09 ms | ~0.0015 ms |
+| Method 4 (custom) | ~6.49 ms | ~0.012 ms |
+
+Both drop to near-zero. The Python→C call, `dlopen`, and per-invocation setup
+are negligible. **The entire gap is inside the 300 kernel dispatches.**
+
 ## What We Know
 
 1. **The gap is NOT in allocation/deallocation.** Stripping method 4's allocator
    down to bare `raw_alloc`/`raw_delete` (no Tensor, no map) has zero effect.
 2. **The gap is NOT from CUDA stream mismatch.** Launching on the correct
    PyTorch stream has zero effect.
-3. **The gap is consistent across all strategies (~6.49 ms)**, suggesting the
-   bottleneck is in the per-operation dispatch path itself — the overhead of
-   300 calls through `dlopen`ed C function pointers, Python→C transitions, or
-   some other fixed cost that LibTorch's `at::Tensor::add()` avoids through
-   its more integrated dispatch.
+3. **The gap is NOT in reshape.** Removing reshapes has zero effect.
+4. **The gap is NOT in per-invocation overhead.** No-op chains are near-zero
+   for both methods.
+5. **The gap is entirely in the 300 per-iteration kernel dispatches.** Something
+   method 4 does differently *per kernel launch* compared to LibTorch's
+   `at::Tensor::add()` accounts for the full ~4.4 ms difference.
 
 ## Open Questions
 
-- Is the overhead in the Python→C boundary (300 nanobind calls vs LibTorch's
-  internal C++ loop)?
-- Does LibTorch batch or fuse operations that method 4 executes individually?
-- Is there CUDA launch overhead from 300 separate `<<<>>>` launches that
-  LibTorch's `at::add` somehow amortizes?
-- Could `nsys` profiling reveal where the extra time is spent?
+- What does LibTorch's `at::add` dispatch path do differently per-launch that
+  makes it ~3x faster than a raw `<<<>>>` kernel launch + caching allocator
+  alloc/free?
+- Could `nsys` profiling reveal where the extra time is spent per-launch?
