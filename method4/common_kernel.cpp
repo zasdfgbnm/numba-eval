@@ -54,13 +54,16 @@ std::filesystem::path resolve_common_kernel_path() {
   const auto self = get_this_shared_object_path();
   if (!self.empty()) {
     const auto dir = self.parent_path();
-    const auto dylib = dir / "libcommon.dylib";
-    const auto so = dir / "libcommon.so";
-    if (std::filesystem::exists(dylib, ec)) {
-      return dylib;
-    }
-    if (std::filesystem::exists(so, ec)) {
-      return so;
+    // Prefer lib/ subdirectory (avoids Python import conflict with libcommon.py).
+    for (const auto& search_dir : {dir / "lib", dir}) {
+      const auto dylib = search_dir / "libcommon.dylib";
+      const auto so = search_dir / "libcommon.so";
+      if (std::filesystem::exists(dylib, ec)) {
+        return dylib;
+      }
+      if (std::filesystem::exists(so, ec)) {
+        return so;
+      }
     }
   }
 
@@ -68,8 +71,23 @@ std::filesystem::path resolve_common_kernel_path() {
   const auto exe = get_executable_path();
   if (!exe.empty()) {
     const auto root = exe.parent_path() / ".." / "..";
-    const auto so = root / "common" / "libcommon.so";
-    const auto dylib = root / "common" / "libcommon.dylib";
+    for (const auto& base : {root / "common" / "lib", root / "common"}) {
+      const auto so = base / "libcommon.so";
+      const auto dylib = base / "libcommon.dylib";
+      if (std::filesystem::exists(dylib, ec)) {
+        return dylib;
+      }
+      if (std::filesystem::exists(so, ec)) {
+        return so;
+      }
+    }
+  }
+
+  // Fallback to working directory relative paths.
+  for (const auto& base : {std::filesystem::path("common") / "lib",
+                            std::filesystem::path("common")}) {
+    const auto so = base / "libcommon.so";
+    const auto dylib = base / "libcommon.dylib";
     if (std::filesystem::exists(dylib, ec)) {
       return dylib;
     }
@@ -78,18 +96,8 @@ std::filesystem::path resolve_common_kernel_path() {
     }
   }
 
-  // Fallback to working directory relative paths.
-  const auto so = std::filesystem::path("common") / "libcommon.so";
-  const auto dylib = std::filesystem::path("common") / "libcommon.dylib";
-  if (std::filesystem::exists(dylib, ec)) {
-    return dylib;
-  }
-  if (std::filesystem::exists(so, ec)) {
-    return so;
-  }
-
   // Last resort: return the canonical target (error message will include it).
-  return so;
+  return std::filesystem::path("common") / "lib" / "libcommon.so";
 }
 }  // namespace
 

@@ -23,6 +23,9 @@ else
   uv sync
 fi
 
+echo "==> Installing CPU-only PyTorch (replacing CUDA build)"
+uv pip install torch --index-url https://download.pytorch.org/whl/cpu --reinstall-package torch
+
 echo
 echo "==> Building common CPU kernel library"
 PYTHON_BIN="$(uv run python -c 'import sys; print(sys.executable)')"
@@ -38,7 +41,7 @@ cmake --build common/build_cpu -j >/dev/null
 echo
 echo "==> Building nanobind Python extensions (method2/method4)"
 rm -rf bindings/build
-PYTHON_HEADERS_BIN="$(python3.12 -c 'import sys; print(sys.executable)')"
+PYTHON_HEADERS_BIN="$PYTHON_BIN"
 cmake -S bindings -B bindings/build \
   -DCMAKE_BUILD_TYPE=Release \
   -DPython_EXECUTABLE="$PYTHON_HEADERS_BIN" \
