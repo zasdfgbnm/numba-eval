@@ -10,27 +10,23 @@ from allocate import allocate_jit as allocate  # type: ignore[import-not-found]
 from allocate import free_jit as free  # type: ignore[import-not-found]
 from chain import (  # type: ignore[import-not-found]
     SHAPE_B,
+    SHAPE_B_ARR,
     emulate_add_reshape_chain_jit as emulate_add_reshape_chain,
 )
+from stride import contiguous_stride  # type: ignore[import-not-found]
 from tensor_view import TensorView  # type: ignore[import-not-found]
 
 
 LOOPS = 100
 
 
-def _contiguous_stride(shape: Tuple[int, ...]) -> Tuple[int, ...]:
-    stride = [1] * len(shape)
-    for i in range(len(shape) - 2, -1, -1):
-        stride[i] = stride[i + 1] * int(shape[i + 1])
-    return tuple(int(s) for s in stride)
-
-
-_STRIDE_B = _contiguous_stride(SHAPE_B)
+_STRIDE_B = contiguous_stride(SHAPE_B_ARR)
 
 
 @njit(cache=True)
 def run_loops(ptr: int) -> int:
-    view = TensorView(ptr=ptr, shape=SHAPE_B, stride=_STRIDE_B)
+    # Copy globals so `view` consistently holds *writable* arrays across updates.
+    view = TensorView(ptr=ptr, shape=SHAPE_B_ARR.copy(), stride=_STRIDE_B.copy())
     for _ in range(LOOPS):
         old_ptr = view.ptr
         view = emulate_add_reshape_chain(view)

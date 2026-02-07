@@ -1,8 +1,9 @@
 from typing import NamedTuple
 
+import numpy as np
+
 
 class TensorView(NamedTuple):
     ptr: int
-    shape: tuple[int, ...]
-    stride: tuple[int, ...]
-
+    shape: np.ndarray
+    stride: np.ndarray

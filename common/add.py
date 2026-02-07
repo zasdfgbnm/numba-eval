@@ -9,7 +9,7 @@ from tensor_view import TensorView
 
 def _get(jit: bool):
     def _check_contiguous(
-        shape: tuple[int, ...], stride: tuple[int, ...]
+        shape: np.ndarray, stride: np.ndarray
     ) -> int:
         # Keep error messages JIT-friendly (no f-strings).
         if len(shape) != len(stride):
