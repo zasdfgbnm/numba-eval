@@ -59,6 +59,13 @@ def test_tuple_set_item_numba_no_nrt_allocations():
         t = (1, 2, 3, 4)
         return tuple_set_item(t, i, 7)
 
+    # Numba disables inspection when loading *from* disk cache. To keep
+    # `cache=True` (fast for normal use) while still inspecting LLVM reliably
+    # in this test, flush any existing cache entries for this function.
+    cache = getattr(f, "_cache", None)
+    if cache is not None and hasattr(cache, "flush"):
+        cache.flush()
+
     # Compile for a concrete signature.
     assert f(2) == (1, 2, 7, 4)
     sig = f.signatures[0]

@@ -1,4 +1,3 @@
-import numpy as np
 from numba import njit  # type: ignore[import-untyped]
 
 from allocate import free, free_jit
@@ -10,10 +9,6 @@ from tensor_view import TensorView
 SHAPE_A = (19, 17, 13, 11, 7, 5, 3, 2)
 SHAPE_B = (2, 3, 5, 7, 11, 13, 17, 19)
 
-# Precomputed ndarray versions for TensorView/Numba hot paths.
-SHAPE_A_ARR = np.array(SHAPE_A, dtype=np.int64)
-SHAPE_B_ARR = np.array(SHAPE_B, dtype=np.int64)
-
 
 def _get(jit: bool):
     _add = add_jit if jit else add
@@ -23,11 +18,11 @@ def _get(jit: bool):
     def emulate_add_reshape_chain(inp: TensorView) -> TensorView:
         """Emulate add/reshape chain on a TensorView."""
         tmp1 = _add(inp, 1.0)
-        v1 = _reshape(tmp1, SHAPE_A_ARR)
+        v1 = _reshape(tmp1, SHAPE_A)
         tmp2 = _add(v1, -1.0)
         _free(tmp1.ptr)
 
-        v2 = _reshape(tmp2, SHAPE_B_ARR)
+        v2 = _reshape(tmp2, SHAPE_B)
         tmp3 = _add(v2, 0.0)
         _free(tmp2.ptr)
         return tmp3
@@ -44,8 +39,6 @@ emulate_add_reshape_chain_jit = _get(True)
 __all__ = [
     "SHAPE_A",
     "SHAPE_B",
-    "SHAPE_A_ARR",
-    "SHAPE_B_ARR",
     "emulate_add_reshape_chain",
     "emulate_add_reshape_chain_jit",
 ]
