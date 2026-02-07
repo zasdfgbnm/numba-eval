@@ -11,7 +11,7 @@ __global__ void add_kernel(const float* __restrict__ input,
   int64_t stride = static_cast<int64_t>(gridDim.x) * blockDim.x;
   int64_t vec_numel = numel / vec_size;
 
-  // Vectorized loop: process 4 floats per iteration via float4.
+  // Vectorized grid-stride loop: process 4 floats per iteration via float4.
   for (int64_t i = tid; i < vec_numel; i += stride) {
     float4 in = reinterpret_cast<const float4*>(input)[i];
     float4 out;
@@ -36,8 +36,11 @@ extern "C" __attribute__((visibility("default"))) void add(
     float alpha) {
   constexpr int threads = 128;
   constexpr int vec_size = 4;
-  int64_t vec_numel = numel / vec_size;
-  int blocks = static_cast<int>((vec_numel + threads - 1) / threads);
+  // Size grid so each thread processes at least 2 float4 loads (8 elements),
+  // matching LibTorch's vectorized_elementwise_kernel grid sizing.
+  constexpr int elems_per_thread = vec_size * 2;
+  int blocks = static_cast<int>((numel + threads * elems_per_thread - 1) /
+                                (threads * elems_per_thread));
   if (blocks == 0) blocks = 1;
   cudaStream_t stream = at::cuda::getCurrentCUDAStream().stream();
   add_kernel<<<blocks, threads, 0, stream>>>(input, output, numel, alpha);
