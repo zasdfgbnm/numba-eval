@@ -35,7 +35,6 @@ void run_method2_libtorch_chain(const std::string& device) {
     out = out.reshape(shape_a);
     out = out.add(-1);
     out = out.reshape(shape_b);
-    out = out.add(0);
   }
 }
 

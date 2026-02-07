@@ -34,10 +34,8 @@ TensorView<kRank> emulate_chain(const TensorView<kRank>& in, const CommonApi& ap
   api.free_buf(tmp1.ptr);
 
   auto v2 = reshape<kRank, kRank>(tmp2, shape_b);
-  auto tmp3 = add<kRank>(v2, 0.0f, api);
-  api.free_buf(tmp2.ptr);
 
-  return tmp3;
+  return {v2.ptr, v2.shape, v2.stride};
 }
 }  // namespace
 

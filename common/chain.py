@@ -23,9 +23,7 @@ def _get(jit: bool):
         _free(tmp1.ptr)
 
         v2 = _reshape(tmp2, SHAPE_B)
-        tmp3 = _add(v2, 0.0)
-        _free(tmp2.ptr)
-        return tmp3
+        return v2
 
     if jit:
         emulate_add_reshape_chain = njit(
