@@ -43,7 +43,7 @@ def main() -> None:
     # Free the final result *after* timing.
     free(view.ptr)
 
-    result = {"method3_python_emulation": seconds}
+    result = {"method3_python_emulation_ms": seconds}
     print(json.dumps(result, indent=2))
 
 

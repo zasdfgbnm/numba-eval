@@ -18,7 +18,7 @@ def main() -> None:
         method4_nb.run_chain()
 
     seconds = time_cpu(op, 1)
-    result = {"method4_custom_nanobind_seconds": seconds}
+    result = {"method4_custom_nanobind_ms": seconds}
     print(json.dumps(result, indent=2))
 
 

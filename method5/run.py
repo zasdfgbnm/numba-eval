@@ -62,7 +62,7 @@ def main() -> None:
     seconds, out_ptr, note = method5_numba(in_ptr, numel)
     if out_ptr:
         free(out_ptr)
-    result = {"method5_numba_jit": seconds, "method5_note": note}
+    result = {"method5_numba_jit_ms": seconds, "method5_note": note}
 
     print(json.dumps(result, indent=2))
 
