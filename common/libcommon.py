@@ -44,6 +44,8 @@ def find_libcommon_path() -> str:
         raise RuntimeError(f"Unsupported platform: {sys.platform}")
 
     candidates = [
+        os.path.join(common_dir, "lib", f"libcommon{suffix}") for suffix in suffixes
+    ] + [
         os.path.join(common_dir, f"libcommon{suffix}") for suffix in suffixes
     ]
     lib_path = next((p for p in candidates if os.path.exists(p)), None)

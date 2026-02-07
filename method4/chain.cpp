@@ -1,6 +1,7 @@
 #include "chain.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 #include "common_kernel.h"
