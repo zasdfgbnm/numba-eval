@@ -3,13 +3,14 @@ import json
 import math
 from typing import Tuple
 
-from numba import njit  # type: ignore[import-not-found]
+from numba import njit  # type: ignore[import-untyped]
 
 from benchmark import time_cpu  # type: ignore[import-not-found]
-from allocate import allocate, free  # type: ignore[import-not-found]
+from allocate import allocate_jit as allocate  # type: ignore[import-not-found]
+from allocate import free_jit as free  # type: ignore[import-not-found]
 from chain import (  # type: ignore[import-not-found]
     SHAPE_B,
-    emulate_add_reshape_chain,
+    emulate_add_reshape_chain_jit as emulate_add_reshape_chain,
 )
 from tensor_view import TensorView  # type: ignore[import-not-found]
 
