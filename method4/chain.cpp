@@ -24,9 +24,11 @@ std::array<int64_t, kRank> contiguous_stride(const std::array<int64_t, kRank>& s
   return stride;
 }
 
+const std::array<int64_t, kRank> shape_b = {2, 3, 5, 7, 11, 13, 17, 19};
+const auto stride_b = contiguous_stride(shape_b);
+
 TensorView<kRank> emulate_chain(const TensorView<kRank>& in, const CommonApi& api) {
   const std::array<int64_t, kRank> shape_a = {19, 17, 13, 11, 7, 5, 3, 2};
-  const std::array<int64_t, kRank> shape_b = {2, 3, 5, 7, 11, 13, 17, 19};
 
   auto v1 = reshape<kRank, kRank>(in, shape_a);
   auto tmp1 = add<kRank>(v1, 0.0f, api);
@@ -37,10 +39,7 @@ TensorView<kRank> emulate_chain(const TensorView<kRank>& in, const CommonApi& ap
 }
 }  // namespace
 
-void run_method4_custom_chain() {
-  const std::array<int64_t, kRank> shape_b = {2, 3, 5, 7, 11, 13, 17, 19};
-  const auto stride_b = contiguous_stride(shape_b);
-
+uint64_t create_method4_input() {
   auto api = load_common_api();
 
   int64_t numel_b = 1;
@@ -48,8 +47,14 @@ void run_method4_custom_chain() {
     numel_b *= d;
   }
 
+  return api.allocate_buf(numel_b * static_cast<int64_t>(sizeof(float)));
+}
+
+uint64_t run_method4_custom_chain(uint64_t in_ptr) {
+  auto api = load_common_api();
+
   TensorView<kRank> view;
-  view.ptr = api.allocate_buf(numel_b * static_cast<int64_t>(sizeof(float)));
+  view.ptr = in_ptr;
   view.shape = shape_b;
   view.stride = stride_b;
 
@@ -60,7 +65,10 @@ void run_method4_custom_chain() {
     api.free_buf(old_ptr);
   }
 
-  // Free final result.
-  api.free_buf(out.ptr);
+  return out.ptr;
 }
 
+void free_method4_buf(uint64_t ptr) {
+  auto api = load_common_api();
+  api.free_buf(ptr);
+}
