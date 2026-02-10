@@ -11,15 +11,12 @@ SHAPE_B = (2, 3, 5, 7, 11, 13, 17, 19)
 LOOPS = 100
 
 
-def method1_pytorch(tensor: torch.Tensor) -> float:
-    def op() -> None:
-        out = tensor
-        for _ in range(LOOPS):
-            out = out.reshape(*SHAPE_A)
-            out = out.add(0)
-            out = out.reshape(*SHAPE_B)
-
-    return time_cpu(op, 1)
+def method1(tensor: torch.Tensor) -> None:
+    out = tensor
+    for _ in range(LOOPS):
+        out = out.reshape(*SHAPE_A)
+        out = out.add(0)
+        out = out.reshape(*SHAPE_B)
 
 
 def main() -> None:
@@ -29,7 +26,13 @@ def main() -> None:
 
     device = torch.device(args.device)
     tensor = torch.empty(SHAPE_B, device=device, dtype=torch.float32)
-    result = {"method1_pytorch_ms": method1_pytorch(tensor)}
+
+    def op() -> None:
+        method1(tensor)
+
+    seconds = time_cpu(op, 1)
+
+    result = {"method1_ms": seconds}
     print(json.dumps(result, indent=2))
 
 

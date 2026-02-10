@@ -1,7 +1,6 @@
 import argparse
 import json
 import math
-from typing import Tuple
 
 from numba import njit  # type: ignore[import-untyped]
 
@@ -19,33 +18,13 @@ from tensor_view import TensorView  # type: ignore[import-not-found]
 LOOPS = 100
 
 
-_STRIDE_B = contiguous_stride(SHAPE_B)
-
-
 @njit(cache=True, inline="always")
-def run_loops(ptr: int) -> int:
-    # Tuples are immutable, so no need to copy.
-    view = TensorView(ptr=ptr, shape=SHAPE_B, stride=_STRIDE_B)
+def method5(view: TensorView) -> TensorView:
     for _ in range(LOOPS):
         old_ptr = view.ptr
         view = emulate_add_reshape_chain(view)
         free(old_ptr)
-    return view.ptr
-
-
-def method5_numba(in_ptr: int, numel: int) -> Tuple[float, int, str]:
-    # Warm up compilation outside timing.
-    warm_ptr = allocate(numel * 4)
-    warm_out = int(run_loops(warm_ptr))
-    free(warm_out)
-
-    out_holder = {"ptr": 0}
-
-    def op() -> None:
-        out_holder["ptr"] = int(run_loops(in_ptr))
-
-    seconds = time_cpu(op, 1)
-    return seconds, int(out_holder["ptr"]), "ok"
+    return view
 
 
 def main() -> None:
@@ -59,11 +38,25 @@ def main() -> None:
 
     numel = int(math.prod(SHAPE_B))
     in_ptr = allocate(numel * 4)  # float32 bytes
-    seconds, out_ptr, note = method5_numba(in_ptr, numel)
-    if out_ptr:
-        free(out_ptr)
-    result = {"method5_numba_jit_ms": seconds, "method5_note": note}
+    in_view = TensorView(ptr=in_ptr, shape=SHAPE_B, stride=contiguous_stride(SHAPE_B))
 
+    # Warm up JIT compilation outside timing.
+    warm_ptr = allocate(numel * 4)
+    warm_view = TensorView(ptr=warm_ptr, shape=SHAPE_B, stride=contiguous_stride(SHAPE_B))
+    warm_out = method5(warm_view)
+    free(warm_out.ptr)
+
+    out_holder = {"view": in_view}
+
+    def op() -> None:
+        out_holder["view"] = method5(in_view)
+
+    seconds = time_cpu(op, 1)
+    # Free the final result *after* timing.
+    if out_holder["view"].ptr:
+        free(out_holder["view"].ptr)
+
+    result = {"method5_ms": seconds}
     print(json.dumps(result, indent=2))
 
 

@@ -5,6 +5,9 @@ import method4_nb  # type: ignore[import-not-found]
 from benchmark import time_cpu  # type: ignore[import-not-found]
 
 
+LOOPS = 100
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", default="cuda")
@@ -25,7 +28,7 @@ def main() -> None:
     # Free the final result *after* timing.
     method4_nb.free_buf(out_holder["ptr"])
 
-    result = {"method4_custom_nanobind_ms": seconds}
+    result = {"method4_ms": seconds}
     print(json.dumps(result, indent=2))
 
 

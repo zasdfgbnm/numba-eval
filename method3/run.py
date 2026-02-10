@@ -15,6 +15,14 @@ from tensor_view import TensorView  # type: ignore[import-not-found]
 LOOPS = 100
 
 
+def method3(view: TensorView) -> TensorView:
+    for _ in range(LOOPS):
+        old_ptr = view.ptr
+        view = emulate_add_reshape_chain(view)
+        free(old_ptr)
+    return view
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", default="cuda")
@@ -26,24 +34,18 @@ def main() -> None:
 
     numel = int(math.prod(SHAPE_B))
     in_ptr = allocate(numel * 4)  # float32 bytes
-    in_shape = SHAPE_B
-    in_stride = contiguous_stride(in_shape)
+    in_view = TensorView(ptr=in_ptr, shape=SHAPE_B, stride=contiguous_stride(SHAPE_B))
 
-    # Inline the timed op into main().
-    view = TensorView(ptr=in_ptr, shape=in_shape, stride=in_stride)
+    out_holder = {"view": in_view}
 
     def op() -> None:
-        nonlocal view
-        for _ in range(LOOPS):
-            old_ptr = view.ptr
-            view = emulate_add_reshape_chain(view)
-            free(old_ptr)
+        out_holder["view"] = method3(in_view)
 
     seconds = time_cpu(op, 1)
     # Free the final result *after* timing.
-    free(view.ptr)
+    free(out_holder["view"].ptr)
 
-    result = {"method3_python_emulation_ms": seconds}
+    result = {"method3_ms": seconds}
     print(json.dumps(result, indent=2))
 
 
