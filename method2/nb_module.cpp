@@ -20,6 +20,6 @@ Run the method2 add/reshape chain in C++ (LibTorch).
 
 Notes:
   - loops is fixed in C++.
-  - tensor: a PyTorch tensor.
+  - Device selection depends on the tensor's device.
 )doc");
 }

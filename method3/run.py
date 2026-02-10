@@ -43,7 +43,8 @@ def main() -> None:
 
     seconds = time_cpu(op, 1)
     # Free the final result *after* timing.
-    free(out_holder["view"].ptr)
+    if out_holder["view"].ptr:
+        free(out_holder["view"].ptr)
 
     result = {"method3_ms": seconds}
     print(json.dumps(result, indent=2))

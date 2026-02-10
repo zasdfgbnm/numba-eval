@@ -26,7 +26,8 @@ def main() -> None:
 
     seconds = time_cpu(op, 1)
     # Free the final result *after* timing.
-    method4_api.free_buf(out_holder["ptr"])
+    if out_holder["ptr"]:
+        method4_api.free_buf(out_holder["ptr"])
 
     result = {"method4_ms": seconds}
     print(json.dumps(result, indent=2))

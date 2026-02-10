@@ -7,7 +7,6 @@ import method2_api  # type: ignore[import-not-found]
 from benchmark import time_cpu  # type: ignore[import-not-found]
 
 
-SHAPE_A = (19, 17, 13, 11, 7, 5, 3, 2)
 SHAPE_B = (2, 3, 5, 7, 11, 13, 17, 19)
 LOOPS = 100
 
@@ -24,6 +23,7 @@ def main() -> None:
         method2_api.method2(tensor)
 
     seconds = time_cpu(op, 1)
+
     result = {"method2_ms": seconds}
     print(json.dumps(result, indent=2))
 

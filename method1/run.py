@@ -3,7 +3,7 @@ import json
 
 import torch
 
-from benchmark import time_cpu
+from benchmark import time_cpu  # type: ignore[import-not-found]
 
 
 SHAPE_A = (19, 17, 13, 11, 7, 5, 3, 2)
