@@ -39,7 +39,7 @@ TensorView<kRank> emulate_chain(const TensorView<kRank>& in, const CommonApi& ap
 }
 }  // namespace
 
-uint64_t create_method4_input() {
+uint64_t method4_create_input() {
   auto api = load_common_api();
 
   int64_t numel_b = 1;
@@ -50,7 +50,7 @@ uint64_t create_method4_input() {
   return api.allocate_buf(numel_b * static_cast<int64_t>(sizeof(float)));
 }
 
-uint64_t run_method4_custom_chain(uint64_t in_ptr) {
+uint64_t method4_custom_chain(uint64_t in_ptr) {
   auto api = load_common_api();
 
   TensorView<kRank> view;
@@ -68,7 +68,7 @@ uint64_t run_method4_custom_chain(uint64_t in_ptr) {
   return out.ptr;
 }
 
-void free_method4_buf(uint64_t ptr) {
+void method4_free_buf(uint64_t ptr) {
   auto api = load_common_api();
   api.free_buf(ptr);
 }

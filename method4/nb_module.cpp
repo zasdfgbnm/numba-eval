@@ -4,12 +4,12 @@
 
 namespace nb = nanobind;
 
-NB_MODULE(method4_nb, m) {
+NB_MODULE(method4_api, m) {
   m.doc() = "nanobind wrapper for method4 (custom C++ emulation)";
 
   m.def(
       "create_input",
-      []() -> uint64_t { return create_method4_input(); },
+      []() -> uint64_t { return method4_create_input(); },
       R"doc(
 Allocate the input buffer for the method4 benchmark.
 
@@ -21,8 +21,8 @@ Notes:
 )doc");
 
   m.def(
-      "run_chain",
-      [](uint64_t in_ptr) -> uint64_t { return run_method4_custom_chain(in_ptr); },
+      "method4",
+      [](uint64_t in_ptr) -> uint64_t { return method4_custom_chain(in_ptr); },
       nb::arg("in_ptr"),
       R"doc(
 Run the method4 emulation chain in C++.
@@ -37,9 +37,9 @@ Notes:
 
   m.def(
       "free_buf",
-      [](uint64_t ptr) { free_method4_buf(ptr); },
+      [](uint64_t ptr) { method4_free_buf(ptr); },
       nb::arg("ptr"),
       R"doc(
-Free a buffer allocated by create_input or returned by run_chain.
+Free a buffer allocated by create_input or returned by method4.
 )doc");
 }

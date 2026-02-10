@@ -59,8 +59,8 @@ uv run python method5/run.py --device cuda
 ## Build Python bindings (nanobind) for Method 2/4
 
 This builds two Python extension modules into `common/`:
-- `method2_nb` (LibTorch baseline)
-- `method4_nb` (custom emulation)
+- `method2_api` (LibTorch baseline)
+- `method4_api` (custom emulation)
 
 ```bash
 TORCH_PREFIX="$(uv run python -c 'import torch; print(torch.utils.cmake_prefix_path)')"

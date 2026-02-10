@@ -6,13 +6,13 @@
 
 namespace nb = nanobind;
 
-NB_MODULE(method2_nb, m) {
+NB_MODULE(method2_api, m) {
   m.doc() = "nanobind wrapper for method2 (LibTorch C++ baseline)";
 
   m.def(
-      "run_chain",
+      "method2",
       [](nb::handle tensor) {
-        run_method2_libtorch_chain(THPVariable_Unpack(tensor.ptr()));
+        method2_libtorch_chain(THPVariable_Unpack(tensor.ptr()));
       },
       nb::arg("tensor"),
       R"doc(

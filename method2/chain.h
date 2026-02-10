@@ -9,4 +9,4 @@
 //
 // Notes:
 // - For CUDA tensors, this does NOT synchronize the device.
-void run_method2_libtorch_chain(const at::Tensor& tensor);
+void method2_libtorch_chain(const at::Tensor& tensor);
