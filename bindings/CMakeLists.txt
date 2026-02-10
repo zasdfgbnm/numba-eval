@@ -45,7 +45,8 @@ nanobind_add_module(
   "${CMAKE_CURRENT_LIST_DIR}/../method2/chain.cpp"
 )
 target_include_directories(method2_nb PRIVATE "${TORCH_INCLUDE_DIRS}")
-target_link_libraries(method2_nb PRIVATE "${TORCH_LIBRARIES}")
+target_link_libraries(method2_nb PRIVATE "${TORCH_LIBRARIES}"
+  "${TORCH_INSTALL_PREFIX}/lib/libtorch_python.so")
 
 if(APPLE OR UNIX)
   # Ensure the Torch shared libraries are discoverable at import time.

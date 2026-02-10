@@ -87,11 +87,11 @@ Each iteration runs reshape-add(0)-reshape (100 iterations, 100 kernel launches)
 
 | Method | Description | Time (ms) |
 |--------|------------|-----------|
-| 1 | PyTorch Python API | 1.02 |
-| 2 | LibTorch C++ (nanobind) | 0.55 |
-| 3 | Python emulation | 2.83 |
-| 4 | Custom kernel (nanobind) | 0.33 |
-| 5 | Numba JIT | 0.31 |
+| 1 | PyTorch Python API | 1.15 |
+| 2 | LibTorch C++ (nanobind) | 0.87 |
+| 3 | Python emulation | 2.78 |
+| 4 | Custom kernel (nanobind) | 0.32 |
+| 5 | Numba JIT | 0.29 |
 
 Methods 4 and 5 are fastest because their lean host dispatch paths (~3 us/op)
 outweigh LibTorch's heavier dispatch (~10 us/op) when GPU kernels are cheap.
