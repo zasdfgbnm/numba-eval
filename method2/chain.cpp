@@ -7,7 +7,7 @@ namespace {
 constexpr int64_t kLoops = 100;
 }  // namespace
 
-void run_method2_libtorch_chain(const at::Tensor& tensor) {
+void method2_libtorch_chain(const at::Tensor& tensor) {
   const std::vector<int64_t> shape_a = {19, 17, 13, 11, 7, 5, 3, 2};
   const std::vector<int64_t> shape_b = {2, 3, 5, 7, 11, 13, 17, 19};
 

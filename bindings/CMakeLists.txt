@@ -40,23 +40,23 @@ set(_OUT_DIR "${CMAKE_CURRENT_LIST_DIR}/../common")
 
 # ---- method2 (LibTorch) ----
 nanobind_add_module(
-  method2_nb
+  method2_api
   "${CMAKE_CURRENT_LIST_DIR}/../method2/nb_module.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/../method2/chain.cpp"
 )
-target_include_directories(method2_nb PRIVATE "${TORCH_INCLUDE_DIRS}")
-target_link_libraries(method2_nb PRIVATE "${TORCH_LIBRARIES}"
+target_include_directories(method2_api PRIVATE "${TORCH_INCLUDE_DIRS}")
+target_link_libraries(method2_api PRIVATE "${TORCH_LIBRARIES}"
   "${TORCH_INSTALL_PREFIX}/lib/libtorch_python.so")
 
 if(APPLE OR UNIX)
   # Ensure the Torch shared libraries are discoverable at import time.
-  set_target_properties(method2_nb PROPERTIES
+  set_target_properties(method2_api PROPERTIES
     BUILD_RPATH "${TORCH_INSTALL_PREFIX}/lib"
     INSTALL_RPATH "${TORCH_INSTALL_PREFIX}/lib"
   )
 endif()
 
-set_target_properties(method2_nb PROPERTIES
+set_target_properties(method2_api PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY "${_OUT_DIR}"
   RUNTIME_OUTPUT_DIRECTORY "${_OUT_DIR}"
   ARCHIVE_OUTPUT_DIRECTORY "${_OUT_DIR}"
@@ -64,20 +64,20 @@ set_target_properties(method2_nb PROPERTIES
 
 # ---- method4 (custom emulation) ----
 nanobind_add_module(
-  method4_nb
+  method4_api
   "${CMAKE_CURRENT_LIST_DIR}/../method4/nb_module.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/../method4/chain.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/../method4/common_kernel.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/../method4/op_add.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/../method4/op_reshape.cpp"
 )
-target_include_directories(method4_nb PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../method4")
+target_include_directories(method4_api PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../method4")
 
 if(UNIX AND NOT APPLE)
-  target_link_libraries(method4_nb PRIVATE dl)
+  target_link_libraries(method4_api PRIVATE dl)
 endif()
 
-set_target_properties(method4_nb PROPERTIES
+set_target_properties(method4_api PROPERTIES
   LIBRARY_OUTPUT_DIRECTORY "${_OUT_DIR}"
   RUNTIME_OUTPUT_DIRECTORY "${_OUT_DIR}"
   ARCHIVE_OUTPUT_DIRECTORY "${_OUT_DIR}"
