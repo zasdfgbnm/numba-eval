@@ -7,17 +7,13 @@ import method2_api  # type: ignore[import-not-found]
 from benchmark import time_cpu  # type: ignore[import-not-found]
 
 
-SHAPE_B = (2, 3, 5, 7, 11, 13, 17, 19)
-LOOPS = 100
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
 
     device = torch.device(args.device)
-    tensor = torch.empty(SHAPE_B, device=device, dtype=torch.float32)
+    tensor = torch.empty((2, 3, 5, 7, 11, 13, 17, 19), device=device, dtype=torch.float32)
 
     def op() -> None:
         method2_api.method2(tensor)

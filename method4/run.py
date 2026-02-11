@@ -5,9 +5,6 @@ import method4_api  # type: ignore[import-not-found]
 from benchmark import time_cpu  # type: ignore[import-not-found]
 
 
-LOOPS = 100
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", default="cuda")

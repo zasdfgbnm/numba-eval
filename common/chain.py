@@ -5,10 +5,6 @@ from add import add, add_jit
 from reshape import reshape, reshape_jit
 from tensor_view import TensorView
 
-# Keep these constants in one place so method3 and method4 stay aligned.
-SHAPE_A = (19, 17, 13, 11, 7, 5, 3, 2)
-SHAPE_B = (2, 3, 5, 7, 11, 13, 17, 19)
-
 
 def _get(jit: bool):
     _add = add_jit if jit else add
@@ -17,10 +13,10 @@ def _get(jit: bool):
 
     def emulate_add_reshape_chain(inp: TensorView) -> TensorView:
         """Emulate add/reshape chain on a TensorView."""
-        v1 = _reshape(inp, SHAPE_A)
+        v1 = _reshape(inp, (19, 17, 13, 11, 7, 5, 3, 2))
         tmp1 = _add(v1, 0.0)
 
-        v2 = _reshape(tmp1, SHAPE_B)
+        v2 = _reshape(tmp1, (2, 3, 5, 7, 11, 13, 17, 19))
         return v2
 
     if jit:
@@ -35,8 +31,6 @@ emulate_add_reshape_chain = _get(False)
 emulate_add_reshape_chain_jit = _get(True)
 
 __all__ = [
-    "SHAPE_A",
-    "SHAPE_B",
     "emulate_add_reshape_chain",
     "emulate_add_reshape_chain_jit",
 ]
