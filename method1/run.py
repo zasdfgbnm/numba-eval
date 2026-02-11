@@ -6,17 +6,12 @@ import torch
 from benchmark import time_cpu  # type: ignore[import-not-found]
 
 
-SHAPE_A = (19, 17, 13, 11, 7, 5, 3, 2)
-SHAPE_B = (2, 3, 5, 7, 11, 13, 17, 19)
-LOOPS = 100
-
-
 def method1(tensor: torch.Tensor) -> None:
     out = tensor
-    for _ in range(LOOPS):
-        out = out.reshape(*SHAPE_A)
+    for _ in range(100):
+        out = out.reshape(19, 17, 13, 11, 7, 5, 3, 2)
         out = out.add(0)
-        out = out.reshape(*SHAPE_B)
+        out = out.reshape(2, 3, 5, 7, 11, 13, 17, 19)
 
 
 def main() -> None:
@@ -25,7 +20,7 @@ def main() -> None:
     args = parser.parse_args()
 
     device = torch.device(args.device)
-    tensor = torch.empty(SHAPE_B, device=device, dtype=torch.float32)
+    tensor = torch.empty((2, 3, 5, 7, 11, 13, 17, 19), device=device, dtype=torch.float32)
 
     def op() -> None:
         method1(tensor)
