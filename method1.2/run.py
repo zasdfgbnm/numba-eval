@@ -6,19 +6,21 @@ import torch
 from benchmark import time_cpu  # type: ignore[import-not-found]
 
 
-@torch.compile
-def _step(out: torch.Tensor) -> torch.Tensor:
-    out = out.reshape(19, 17, 13, 11, 7, 5, 3, 2)
-    out = out.add(0)
-    out = out.reshape(2, 3, 5, 7, 11, 13, 17, 19)
+def _method1_2_inner(tensor: torch.Tensor) -> torch.Tensor:
+    out = tensor
+    for _ in range(100):
+        out = out.reshape(19, 17, 13, 11, 7, 5, 3, 2)
+        out = out.add(0)
+        out = out.reshape(2, 3, 5, 7, 11, 13, 17, 19)
+        torch._dynamo.graph_break()
     return out
+
+
+method1_2_compiled = torch.compile(_method1_2_inner)
 
 
 def method1_2(tensor: torch.Tensor) -> torch.Tensor:
-    out = tensor
-    for _ in range(100):
-        out = _step(out)
-    return out
+    return method1_2_compiled(tensor)
 
 
 def main() -> None:
