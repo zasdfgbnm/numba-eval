@@ -64,6 +64,10 @@ echo "-- method1 (PyTorch baseline)"
 uv run python method1/run.py --device cuda
 
 echo
+echo "-- method1.5 (PyTorch + torch.compile)"
+uv run python method1.5/run.py --device cuda
+
+echo
 echo "-- method2 (LibTorch C++ via nanobind)"
 uv run python method2/run.py --device cuda
 

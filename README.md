@@ -6,6 +6,7 @@ Benchmark CPU overhead for repeated PyTorch add/reshape chains on a CUDA tensor.
 
 - `common/`: shared Python modules (on `PYTHONPATH`) + shared CUDA kernel sources.
 - `method1/`: PyTorch Python baseline.
+- `method1.5/`: PyTorch + `torch.compile`.
 - `method2/`: LibTorch C++ baseline.
 - `method3/`: Python emulation with explicit checks (uses common CUDA kernel).
 - `method4/`: C++ emulation with explicit checks (uses common CUDA kernel).
@@ -35,11 +36,14 @@ uv venv
 uv pip install -e .
 ```
 
-## Python Benchmarks (Method 1/3/5)
+## Python Benchmarks (Method 1/1.5/3/5)
 
 ```bash
 # Method 1 (PyTorch Python)
 uv run python method1/run.py --device cuda
+
+# Method 1.5 (PyTorch + torch.compile)
+uv run python method1.5/run.py --device cuda
 
 # Method 2 (LibTorch C++ via nanobind)
 # (Build the bindings first; see below.)
@@ -88,6 +92,7 @@ Each iteration runs reshape-add(0)-reshape (100 iterations, 100 kernel launches)
 | Method | Description | Time (ms) |
 |--------|------------|-----------|
 | 1 | PyTorch Python API | 1.14 |
+| 1.5 | PyTorch + `torch.compile` | 0.01 |
 | 2 | LibTorch C++ (nanobind) | 0.56 |
 | 3 | Python emulation | 2.81 |
 | 4 | Custom kernel (nanobind) | 0.32 |
