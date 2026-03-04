@@ -55,12 +55,8 @@ echo "-- method1.1 (torch.compile, fused)"
 uv run python method1.1/run.py --device cpu
 
 echo
-echo "-- method1.2 (torch.compile, compiled step)"
+echo "-- method1.2 (torch.compile + graph_break)"
 uv run python method1.2/run.py --device cpu
-
-echo
-echo "-- method1.3 (torch.compile + graph_break)"
-uv run python method1.3/run.py --device cpu
 
 echo
 echo "-- method2 (LibTorch C++ via nanobind)"
