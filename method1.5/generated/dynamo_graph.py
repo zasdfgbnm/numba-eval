@@ -1,5 +1,5 @@
 TRACED GRAPH
- ===== __compiled_fn_1_54050021_908d_40f9_84d3_684867b28796 =====
+ ===== __compiled_fn_1_536f311b_bff3_442f_b4b3_be571113aa0b =====
  /usr/local/lib/python3.12/dist-packages/torch/fx/_lazy_graph_module.py class GraphModule(torch.nn.Module):
     def forward(self, L_tensor_: "f32[2, 3, 5, 7, 11, 13, 17, 19][4849845, 1616615, 323323, 46189, 4199, 323, 19, 1]cuda:0"):
         l_tensor_ = L_tensor_
@@ -304,7 +304,7 @@ TRACED GRAPH
         out_296: "f32[2, 3, 5, 7, 11, 13, 17, 19][4849845, 1616615, 323323, 46189, 4199, 323, 19, 1]cuda:0" = out_295.reshape(2, 3, 5, 7, 11, 13, 17, 19);  out_295 = None
         out_297: "f32[19, 17, 13, 11, 7, 5, 3, 2][510510, 30030, 2310, 210, 30, 6, 2, 1]cuda:0" = out_296.reshape(19, 17, 13, 11, 7, 5, 3, 2);  out_296 = None
         out_298: "f32[19, 17, 13, 11, 7, 5, 3, 2][510510, 30030, 2310, 210, 30, 6, 2, 1]cuda:0" = out_297.add(0);  out_297 = None
-        out_299: "f32[2, 3, 5, 7, 11, 13, 17, 19][4849845, 1616615, 323323, 46189, 4199, 323, 19, 1]cuda:0" = out_298.reshape(2, 3, 5, 7, 11, 13, 17, 19);  out_298 = out_299 = None
-        return ()
+        out_299: "f32[2, 3, 5, 7, 11, 13, 17, 19][4849845, 1616615, 323323, 46189, 4199, 323, 19, 1]cuda:0" = out_298.reshape(2, 3, 5, 7, 11, 13, 17, 19);  out_298 = None
+        return (out_299,)
 
 

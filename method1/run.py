@@ -6,12 +6,13 @@ import torch
 from benchmark import time_cpu  # type: ignore[import-not-found]
 
 
-def method1(tensor: torch.Tensor) -> None:
+def method1(tensor: torch.Tensor) -> torch.Tensor:
     out = tensor
     for _ in range(100):
         out = out.reshape(19, 17, 13, 11, 7, 5, 3, 2)
         out = out.add(0)
         out = out.reshape(2, 3, 5, 7, 11, 13, 17, 19)
+    return out
 
 
 def main() -> None:

@@ -92,7 +92,7 @@ Each iteration runs reshape-add(0)-reshape (100 iterations, 100 kernel launches)
 | Method | Description | Time (ms) |
 |--------|------------|-----------|
 | 1 | PyTorch Python API | 1.14 |
-| 1.5 | PyTorch + `torch.compile` | 0.01 |
+| 1.5 | PyTorch + `torch.compile` | 0.04 |
 | 2 | LibTorch C++ (nanobind) | 0.56 |
 | 3 | Python emulation | 2.81 |
 | 4 | Custom kernel (nanobind) | 0.32 |
