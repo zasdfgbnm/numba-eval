@@ -8,7 +8,7 @@ Benchmark CPU overhead for repeated PyTorch add/reshape chains on a CUDA tensor.
 - `method1/`: PyTorch Python baseline.
 - `method1.1/`: PyTorch + `torch.compile` (full graph, fused to 1 kernel).
 - `method1.2/`: PyTorch + `torch.compile` (compiled step, Python loop).
-- `method1.3/`: PyTorch + `torch.compile` + `graph_break()` (falls back to eager).
+- `method1.3/`: PyTorch + `torch.compile` + `graph_break()` (unrolled, 100 subgraphs).
 - `method2/`: LibTorch C++ baseline.
 - `method3/`: Python emulation with explicit checks (uses common CUDA kernel).
 - `method4/`: C++ emulation with explicit checks (uses common CUDA kernel).
@@ -102,7 +102,7 @@ Each iteration runs reshape-add(0)-reshape (100 iterations, 100 kernel launches)
 | 1 | PyTorch Python API | 1.08 |
 | 1.1 | `torch.compile` (fused, 1 kernel) | 0.04 |
 | 1.2 | `torch.compile` (compiled step, Python loop) | 2.55 |
-| 1.3 | `torch.compile` + `graph_break()` (eager fallback) | 1.60 |
+| 1.3 | `torch.compile` + `graph_break()` (unrolled, 100 subgraphs) | 4.90 |
 | 2 | LibTorch C++ (nanobind) | 0.90 |
 | 3 | Python emulation | 2.76 |
 | 4 | Custom kernel (nanobind) | 0.28 |
