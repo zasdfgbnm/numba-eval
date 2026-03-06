@@ -85,7 +85,7 @@ cmake --build bindings/build -j
 ## Notes
 
 - The timing is **CPU-only** and does **not** include `cudaDeviceSynchronize`.
-- Each iteration performs `reshape → F.normalize(dim=i%4) → reshape`, cycling through dims 0-3 (sizes 19, 17, 13, 11) to prevent torch.compile from fusing iterations.
+- Each iteration performs `reshape → normalize(dim=i%4) → reshape` using a custom single-kernel L2 normalize op, cycling through dims 0-3 (sizes 19, 17, 13, 11) to prevent torch.compile from fusing iterations.
 - Method 3/4 intentionally keep all checks explicit and unoptimized to emulate compiler-generated code.
 - Method 5 uses the same C ABI (`libcommon`) and can optionally JIT the chain with Numba.
 
@@ -96,14 +96,15 @@ Each iteration runs reshape-normalize-reshape (100 iterations, 100 kernel launch
 
 | Method | Description | Time (ms) |
 |--------|------------|-----------|
-| 1 | PyTorch Python API | 4.40 |
-| 1.1 | `torch.compile` (single graph, 100 kernels) | 0.79 |
-| 1.2 | `torch.compile` + `graph_break()` (100 subgraphs) | 5.87 |
-| 2 | LibTorch C++ (nanobind) | 3.78 |
-| 3 | Python emulation | 2.81 |
+| 1 | PyTorch Python API | 3.58 |
+| 1.1 | `torch.compile` (single graph, 100 kernels) | 3.11 |
+| 1.2 | `torch.compile` + `graph_break()` (100 subgraphs) | 9.39 |
+| 2 | LibTorch C++ (nanobind) | 0.44 |
+| 3 | Python emulation | 2.86 |
 | 4 | Custom kernel (nanobind) | 0.41 |
 | 5 | Numba JIT | 0.41 |
 
-Methods 4 and 5 are fastest because their lean host dispatch paths (~4 us/op)
-outweigh LibTorch's heavier dispatch (~38 us/op) when GPU kernels are cheap.
+Methods 2, 4, and 5 are fastest because they bypass Python dispatch entirely.
+torch.compile does not help with opaque custom ops — each call still goes
+through the Python dispatcher (~30 us/op).
 See `experiments/FINDINGS.md` for detailed profiling and analysis.

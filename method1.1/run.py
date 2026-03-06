@@ -2,8 +2,8 @@ import argparse
 import json
 
 import torch
-import torch.nn.functional as F
 
+import custom_normalize_op  # type: ignore[import-not-found]  # noqa: F401
 from benchmark import time_cpu  # type: ignore[import-not-found]
 
 
@@ -11,7 +11,7 @@ def _method1_1_inner(tensor: torch.Tensor) -> torch.Tensor:
     out = tensor
     for i in range(100):
         out = out.reshape(19, 17, 13, 11, 7, 5, 3, 2)
-        out = F.normalize(out, dim=(i % 4))
+        out = torch.ops.numba_eval.normalize(out, i % 4)
         out = out.reshape(2, 3, 5, 7, 11, 13, 17, 19)
     return out
 
