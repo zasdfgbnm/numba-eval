@@ -131,6 +131,11 @@ CommonApi load_common_api() {
     throw std::runtime_error("Failed to find add");
   }
 
+  auto normalize_fn = reinterpret_cast<NormalizeKernelFn>(dlsym(handle, "normalize"));
+  if (!normalize_fn) {
+    throw std::runtime_error("Failed to find normalize");
+  }
+
   auto alloc_fn = reinterpret_cast<AllocateBufFn>(dlsym(handle, "allocate_buf"));
   if (!alloc_fn) {
     throw std::runtime_error("Failed to find allocate_buf");
@@ -144,6 +149,7 @@ CommonApi load_common_api() {
   CommonApi api;
   api.handle = handle;
   api.add = add_fn;
+  api.normalize = normalize_fn;
   api.allocate_buf = alloc_fn;
   api.free_buf = free_fn;
   return api;

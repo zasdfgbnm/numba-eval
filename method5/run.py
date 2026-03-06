@@ -8,7 +8,7 @@ from benchmark import time_cpu  # type: ignore[import-not-found]
 from allocate import allocate_jit as allocate  # type: ignore[import-not-found]
 from allocate import free_jit as free  # type: ignore[import-not-found]
 from chain import (  # type: ignore[import-not-found]
-    emulate_add_reshape_chain_jit as emulate_add_reshape_chain,
+    emulate_normalize_reshape_chain_jit as emulate_normalize_reshape_chain,
 )
 from stride import contiguous_stride  # type: ignore[import-not-found]
 from tensor_view import TensorView  # type: ignore[import-not-found]
@@ -16,9 +16,9 @@ from tensor_view import TensorView  # type: ignore[import-not-found]
 
 @njit(cache=True, inline="always")
 def method5(view: TensorView) -> TensorView:
-    for _ in range(100):
+    for i in range(100):
         old_ptr = view.ptr
-        view = emulate_add_reshape_chain(view)
+        view = emulate_normalize_reshape_chain(view, i)
         free(old_ptr)
     return view
 

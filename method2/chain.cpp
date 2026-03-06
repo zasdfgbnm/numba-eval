@@ -13,7 +13,8 @@ void method2_libtorch_chain(const at::Tensor& tensor) {
   auto out = tensor;
   for (int64_t i = 0; i < 100; ++i) {
     out = out.reshape(shape_a);
-    out = out.add(0);
+    auto denom = out.norm(2.0, /*dim=*/i % 4, /*keepdim=*/true).clamp_min(1e-12f).expand_as(out);
+    out = out / denom;
     out = out.reshape(shape_b);
   }
 }

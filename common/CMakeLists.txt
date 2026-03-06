@@ -37,11 +37,13 @@ target_sources(common PRIVATE
 if(NUMBA_EVAL_USE_CUDA)
   target_sources(common PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/csrc/add_kernel.cu"
+    "${CMAKE_CURRENT_LIST_DIR}/csrc/normalize_kernel.cu"
   )
   target_compile_definitions(common PRIVATE NUMBA_EVAL_ALLOCATE_DEVICE_CUDA=1)
 else()
   target_sources(common PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/csrc/add_cpu.c"
+    "${CMAKE_CURRENT_LIST_DIR}/csrc/normalize_cpu.c"
   )
   target_compile_definitions(common PRIVATE NUMBA_EVAL_ALLOCATE_DEVICE_CPU=1)
 endif()

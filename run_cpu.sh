@@ -51,7 +51,7 @@ echo "-- method1 (PyTorch baseline)"
 uv run python method1/run.py --device cpu
 
 echo
-echo "-- method1.1 (torch.compile, fused)"
+echo "-- method1.1 (torch.compile, single graph)"
 uv run python method1.1/run.py --device cpu
 
 echo
