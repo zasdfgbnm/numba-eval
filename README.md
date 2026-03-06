@@ -1,14 +1,13 @@
 # numba-eval
 
-Benchmark CPU overhead for repeated PyTorch add/reshape chains on a CUDA tensor.
+Benchmark CPU overhead for repeated PyTorch normalize/reshape chains on a CUDA tensor.
 
 ## Repo Layout
 
 - `common/`: shared Python modules (on `PYTHONPATH`) + shared CUDA kernel sources.
 - `method1/`: PyTorch Python baseline.
-- `method1.1/`: PyTorch + `torch.compile` (full graph, fused to 1 kernel).
+- `method1.1/`: PyTorch + `torch.compile` (single graph, 100 reduction kernels).
 - `method1.2/`: PyTorch + `torch.compile` + `graph_break()` (unrolled, 100 subgraphs).
-- `method1.3/`: PyTorch + `torch.compile` (single graph, 100 kernel boundaries via reductions).
 - `method2/`: LibTorch C++ baseline.
 - `method3/`: Python emulation with explicit checks (uses common CUDA kernel).
 - `method4/`: C++ emulation with explicit checks (uses common CUDA kernel).
@@ -38,20 +37,17 @@ uv venv
 uv pip install -e .
 ```
 
-## Python Benchmarks (Method 1/1.1/1.2/1.3/3/5)
+## Python Benchmarks (Method 1/1.1/1.2/3/5)
 
 ```bash
 # Method 1 (PyTorch Python)
 uv run python method1/run.py --device cuda
 
-# Method 1.1 (PyTorch + torch.compile, fused)
+# Method 1.1 (PyTorch + torch.compile, single graph)
 uv run python method1.1/run.py --device cuda
 
 # Method 1.2 (PyTorch + torch.compile + graph_break)
 uv run python method1.2/run.py --device cuda
-
-# Method 1.3 (PyTorch + torch.compile, single graph, reduction kernel boundaries)
-uv run python method1.3/run.py --device cuda
 
 # Method 2 (LibTorch C++ via nanobind)
 # (Build the bindings first; see below.)
@@ -89,25 +85,27 @@ cmake --build bindings/build -j
 ## Notes
 
 - The timing is **CPU-only** and does **not** include `cudaDeviceSynchronize`.
+- Each iteration performs `reshape → normalize(dim=i%4) → reshape`, cycling through dims 0-3 (sizes 19, 17, 13, 11) to prevent torch.compile from fusing iterations.
+- Methods 1/2/3/4/5 use a custom single-kernel L2 normalize from `libcommon`. Methods 1.1/1.2 use `F.normalize` so Inductor generates Triton reduction kernels.
 - Method 3/4 intentionally keep all checks explicit and unoptimized to emulate compiler-generated code.
 - Method 5 uses the same C ABI (`libcommon`) and can optionally JIT the chain with Numba.
 
 ## Benchmark Results
 
 Measured on 4x NVIDIA GB200 (sm_100), CUDA 13.2, aarch64 Linux.
-Each iteration runs reshape-add(0)-reshape (100 iterations, 100 kernel launches).
+Each iteration runs reshape-normalize-reshape (100 iterations, 100 kernel launches).
 
 | Method | Description | Time (ms) |
 |--------|------------|-----------|
-| 1 | PyTorch Python API | 1.08 |
-| 1.1 | `torch.compile` (fused, 1 kernel) | 0.04 |
-| 1.2 | `torch.compile` + `graph_break()` (100 subgraphs) | 4.90 |
-| 1.3 | `torch.compile` (single graph, 100 reduction kernels) | 1.35 |
-| 2 | LibTorch C++ (nanobind) | 0.90 |
-| 3 | Python emulation | 2.76 |
-| 4 | Custom kernel (nanobind) | 0.28 |
-| 5 | Numba JIT | 0.28 |
+| 1 | PyTorch Python API (custom op) | 3.62 |
+| 1.1 | `torch.compile` (single graph, Triton kernels) | 0.79 |
+| 1.2 | `torch.compile` + `graph_break()` (100 subgraphs) | 5.64 |
+| 2 | LibTorch C++ (nanobind) | 0.48 |
+| 3 | Python emulation | 2.89 |
+| 4 | Custom kernel C++ (nanobind) | 0.43 |
+| 5 | Numba JIT | 0.43 |
 
-Methods 4 and 5 are fastest because their lean host dispatch paths (~3 us/op)
-outweigh LibTorch's heavier dispatch (~10 us/op) when GPU kernels are cheap.
+Methods 2, 4, and 5 are fastest because they bypass Python dispatch entirely.
+Method 1.1 (torch.compile) generates efficient Triton reduction kernels and
+dispatches them with minimal overhead from a single compiled graph.
 See `experiments/FINDINGS.md` for detailed profiling and analysis.

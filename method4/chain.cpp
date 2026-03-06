@@ -5,7 +5,7 @@
 #include <cstdint>
 
 #include "common_kernel.h"
-#include "op_add.h"
+#include "op_normalize.h"
 #include "op_reshape.h"
 
 namespace {
@@ -25,11 +25,11 @@ std::array<int64_t, 8> contiguous_stride(const std::array<int64_t, 8>& shape) {
 const std::array<int64_t, 8> shape_b = {2, 3, 5, 7, 11, 13, 17, 19};
 const auto stride_b = contiguous_stride(shape_b);
 
-TensorView<8> emulate_chain(const TensorView<8>& in, const CommonApi& api) {
+TensorView<8> emulate_chain(const TensorView<8>& in, int64_t dim, const CommonApi& api) {
   const std::array<int64_t, 8> shape_a = {19, 17, 13, 11, 7, 5, 3, 2};
 
   auto v1 = reshape<8, 8>(in, shape_a);
-  auto tmp1 = add<8>(v1, 0.0f, api);
+  auto tmp1 = normalize<8>(v1, dim, api);
 
   auto v2 = reshape<8, 8>(tmp1, shape_b);
 
@@ -59,7 +59,7 @@ uint64_t method4_custom_chain(uint64_t in_ptr) {
   auto out = view;
   for (int64_t i = 0; i < 100; ++i) {
     const auto old_ptr = out.ptr;
-    out = emulate_chain(out, api);
+    out = emulate_chain(out, i % 4, api);
     api.free_buf(old_ptr);
   }
 

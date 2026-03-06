@@ -28,6 +28,7 @@ __all__ = [
     "allocate_buf",
     "free_buf",
     "add",
+    "normalize",
 ]
 
 
@@ -72,11 +73,13 @@ F32 = types.float32
 allocate_sig = typing.signature(PTR, INT)
 free_sig = typing.signature(types.void, PTR)
 add_sig = typing.signature(types.void, PTR, PTR, INT, F32)
+normalize_sig = typing.signature(types.void, PTR, PTR, INT, INT, INT)
 
 # C ABI (ExternalFunction): usable inside nopython functions.
 c_allocate_buf = types.ExternalFunction("allocate_buf", allocate_sig)
 c_free_buf = types.ExternalFunction("free_buf", free_sig)
 c_add = types.ExternalFunction("add", add_sig)
+c_normalize = types.ExternalFunction("normalize", normalize_sig)
 
 
 # Thin JIT wrappers (callable from Python too; compile on first call).
@@ -93,3 +96,8 @@ def free_buf(ptr):
 @njit(types.void(PTR, PTR, INT, F32), cache=True, inline="always")
 def add(inp_ptr, out_ptr, numel, alpha):
     c_add(inp_ptr, out_ptr, numel, alpha)
+
+
+@njit(types.void(PTR, PTR, INT, INT, INT), cache=True, inline="always")
+def normalize(inp_ptr, out_ptr, numel, reduce_dim_size, dim_stride):
+    c_normalize(inp_ptr, out_ptr, numel, reduce_dim_size, dim_stride)

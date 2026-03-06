@@ -2,6 +2,7 @@ import argparse
 import json
 
 import torch
+import torch.nn.functional as F
 
 from benchmark import time_cpu  # type: ignore[import-not-found]
 
@@ -12,7 +13,7 @@ _lines = ["def _method1_2_inner(tensor):"]
 _lines.append("    out = tensor")
 for _i in range(100):
     _lines.append("    out = out.reshape(19, 17, 13, 11, 7, 5, 3, 2)")
-    _lines.append("    out = out.add(0)")
+    _lines.append(f"    out = torch.nn.functional.normalize(out, dim={_i % 4})")
     _lines.append("    out = out.reshape(2, 3, 5, 7, 11, 13, 17, 19)")
     _lines.append("    torch._dynamo.graph_break()")
 _lines.append("    return out")

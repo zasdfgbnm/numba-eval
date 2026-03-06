@@ -69,6 +69,7 @@ nanobind_add_module(
   "${CMAKE_CURRENT_LIST_DIR}/../method4/chain.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/../method4/common_kernel.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/../method4/op_add.cpp"
+  "${CMAKE_CURRENT_LIST_DIR}/../method4/op_normalize.cpp"
   "${CMAKE_CURRENT_LIST_DIR}/../method4/op_reshape.cpp"
 )
 target_include_directories(method4_api PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../method4")
